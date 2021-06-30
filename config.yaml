@@ -1,0 +1,5 @@
+http:
+    port: 8081
+
+storage:
+    type: memory
