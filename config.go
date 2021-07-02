@@ -15,6 +15,7 @@ import (
 
 const configPath = "config.yaml"
 
+// Config defines configuration values.
 type Config struct {
 	HTTP struct {
 		Port int16 `yaml:"port"`
@@ -23,8 +24,10 @@ type Config struct {
 		Type   string                 `yaml:"type"`
 		Config map[string]interface{} `yaml:"config"`
 	} `yaml:"storage"`
+	UserGroups map[string]UserGroup `yaml:"user_groups"`
 }
 
+// loadConfig loads config file.
 func loadConfig() (*Config, error) {
 	// set default
 	config := &Config{}
@@ -42,7 +45,7 @@ func loadConfig() (*Config, error) {
 	return config, nil
 }
 
-// StorageClient returns the configured Gokv storage client.
+// storageClient returns the configured Gokv storage client.
 func (c *Config) storageClient() gokv.Store {
 	switch c.Storage.Type {
 	case "redis":

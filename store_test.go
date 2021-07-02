@@ -1,9 +1,10 @@
 package main
 
 import (
-	"log"
 	"math/rand"
 	"testing"
+
+	"github.com/pkg/errors"
 )
 
 func TestGetSet(t *testing.T) {
@@ -20,9 +21,27 @@ func TestGetSet(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	log.Println(o.Data, storedObj.Data)
-	if storedObj.UID != o.UID || storedObj.Data["test"] != o.Data["test"] || storedObj.Data["test2"] != o.Data["test2"] {
+	if storedObj.UID != o.UID || storedObj.Data["test"] != o.Data["test"] || int(storedObj.Data["test2"].(float64)) != o.Data["test2"] {
 		t.Error("stored object does not match")
+		return
+	}
+}
+
+func TestDelete(t *testing.T) {
+	s := NewStore(nil)
+	o := NewObject(nil)
+	o.Data["test"] = "hello world"
+	if err := s.Set(o, nil); err != nil {
+		t.Error(err)
+		return
+	}
+	if err := s.Delete(o, nil); err != nil {
+		t.Error(err)
+		return
+	}
+	_, err := s.Get(o.UID, nil)
+	if !errors.Is(err, ErrNotFound) {
+		t.Error("expected not found error")
 		return
 	}
 }

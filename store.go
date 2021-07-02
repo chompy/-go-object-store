@@ -22,10 +22,11 @@ const (
 
 // Store is the key/value store interface.
 type Store struct {
-	client    gokv.Store
-	sync      sync.Mutex
-	index     []*IndexObject
-	indexSync sync.Mutex
+	client     gokv.Store
+	sync       sync.Mutex
+	index      []*IndexObject
+	indexSync  sync.Mutex
+	userGroups map[string]UserGroup
 }
 
 // NewStore creates a new object store from given configuration.
@@ -33,13 +34,30 @@ func NewStore(c *Config) *Store {
 	if c == nil {
 		// use memory store by default
 		return &Store{
-			client: syncmap.NewStore(syncmap.DefaultOptions),
+			client:     syncmap.NewStore(syncmap.DefaultOptions),
+			userGroups: make(map[string]UserGroup),
 		}
 	}
 	s := &Store{
-		client: c.storageClient(),
+		client:     c.storageClient(),
+		userGroups: c.UserGroups,
 	}
 	return s
+}
+
+func (s *Store) getUserGroups(u *User) []UserGroup {
+	out := make([]UserGroup, 0)
+	if u == nil {
+		return out
+	}
+	for k, v := range s.userGroups {
+		for _, name := range u.Groups {
+			if name == k {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }
 
 func (s *Store) getRaw(k string, o interface{}) error {
@@ -82,6 +100,35 @@ func (s *Store) commitIndex() error {
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (s *Store) checkPermission(perm string, u *User, o *IndexObject) error {
+	if o == nil {
+		return errors.WithStack(ErrMissingObject)
+	}
+	if u == nil {
+		return nil
+	}
+	// if user is author then they can 'get' the object
+	if perm == permGet && o.Author == u.UID {
+		return nil
+	}
+	// itterate groups and see if any allow permission
+	userGroups := s.getUserGroups(u)
+	for _, userGroup := range userGroups {
+		match, err := userGroup.check(perm, o)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if match {
+			return nil
+		}
+	}
+	// if user owns object then they are allowed to update it provided they have 'set' permission
+	if perm == permUpdate && o.Author == u.UID {
+		return s.checkPermission(permSet, u, o)
+	}
+	return errors.WithStack(ErrPermission)
 }
 
 // Sync syncs the local memory index with the remote store index.
@@ -159,13 +206,42 @@ func (s *Store) Get(uid string, u *User) (*Object, error) {
 	if err := s.getRaw(objectPrefix+uid, o); err != nil {
 		return nil, errors.WithStack(err)
 	}
+	if err := s.checkPermission(permGet, u, o.Index()); err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return o, nil
 }
 
 // Set stores object.
 func (s *Store) Set(o *Object, u *User) error {
+	if o == nil {
+		return errors.WithStack(ErrMissingObject)
+	}
+	if o.UID == "" {
+		return errors.WithStack(ErrMissingUID)
+	}
+
 	defer s.sync.Unlock()
 	s.sync.Lock()
+	// check against previous existing object
+	if u != nil {
+		existingObj, err := s.Get(o.UID, nil)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return errors.WithStack(err)
+		}
+		if existingObj == nil {
+			// if no existing object then use 'set' permission
+			if err := s.checkPermission(permSet, u, o.Index()); err != nil {
+				return errors.WithStack(err)
+			}
+		} else if existingObj != nil {
+			// if existing object then use 'update' permission
+			if err := s.checkPermission(permUpdate, u, o.Index()); err != nil {
+				return errors.WithStack(err)
+			}
+		}
+	}
+
 	o.Modified = time.Now()
 	if err := s.client.Set(objectPrefix+o.UID, o); err != nil {
 		return errors.WithStack(err)
@@ -176,6 +252,12 @@ func (s *Store) Set(o *Object, u *User) error {
 
 // Delete deletes object from store.
 func (s *Store) Delete(o *Object, u *User) error {
+	if o.UID == "" {
+		return errors.WithStack(ErrMissingUID)
+	}
+	if err := s.checkPermission(permDelete, u, o.Index()); err != nil {
+		return errors.WithStack(err)
+	}
 	defer s.sync.Unlock()
 	s.sync.Lock()
 	if err := s.client.Delete(objectPrefix + o.UID); err != nil {
@@ -193,9 +275,7 @@ func (s *Store) Query(q string, u *User) ([]IndexObject, error) {
 	}
 	out := make([]IndexObject, 0)
 	for _, obj := range s.index {
-		obj.Data["created"] = obj.Created.UTC().Unix()
-		obj.Data["modified"] = obj.Modified.UTC().Unix()
-		match, err := ruler.Match(obj.Data)
+		match, err := ruler.Match(obj.QueryMap())
 		if err != nil {
 			if strings.Contains(err.Error(), "not provided") {
 				continue
@@ -203,6 +283,12 @@ func (s *Store) Query(q string, u *User) ([]IndexObject, error) {
 			return nil, errors.WithStack(err)
 		}
 		if match {
+			if err := s.checkPermission(permGet, u, obj); err != nil {
+				if errors.Is(err, ErrPermission) {
+					continue
+				}
+				return nil, errors.WithStack(err)
+			}
 			out = append(out, *obj)
 		}
 	}
@@ -230,6 +316,15 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 
 // SetUser stores given user.
 func (s *Store) SetUser(u *User) error {
+	if u.UID == "" {
+		return errors.WithStack(ErrMissingUID)
+	}
+	if u.Username == "" {
+		return errors.WithStack(ErrMissingUsername)
+	}
+	if u.PasswordHash == "" {
+		return errors.WithStack(ErrInvalidPassword)
+	}
 	defer s.sync.Unlock()
 	s.sync.Lock()
 	if err := s.client.Set(userPrefix+u.UID, u); err != nil {

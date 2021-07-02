@@ -76,6 +76,7 @@ func (o *Object) Index() *IndexObject {
 	}
 	return &IndexObject{
 		UID:      o.UID,
+		Author:   o.Author,
 		Created:  o.Created,
 		Modified: o.Modified,
 		Data:     indexData,

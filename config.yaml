@@ -3,3 +3,24 @@ http:
 
 storage:
     type: memory
+
+user_groups:
+    anonymous:
+        rate_limit: 5000
+        get: "type in ('group', 'question')"
+        create: false
+        modify: false
+
+    admin:
+        get: true
+        create:  true
+        modify: true
+
+validation_rules:
+    -
+        type: regexp
+        match: "type = 'page"
+        keys:
+            - body
+            - name
+        rule: "[a-zA-Z]*"

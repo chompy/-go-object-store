@@ -13,6 +13,10 @@ var (
 	ErrInvalidCreds    = errors.New("user provided invalid login credientials")
 	ErrPermission      = errors.New("user does not have permission to access this resource")
 	ErrEmptyReponse    = errors.New("empty response")
+	ErrMissingUID      = errors.New("object missing uid")
+	ErrMissingUsername = errors.New("user must have an username")
+	ErrMissingObject   = errors.New("object can't be nil")
+	ErrInvalidPassword = errors.New("invalid password, cannot be empty or less than eight characters")
 )
 
 func errHTTPResponseCode(err error) int {
