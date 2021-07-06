@@ -9,9 +9,12 @@ import (
 
 func TestGetSet(t *testing.T) {
 	s := NewStore(nil)
-	o := NewObject(nil)
-	o.Data["test"] = "hello world"
-	o.Data["test2"] = 123
+	o := &Object{
+		Data: map[string]interface{}{
+			"test":  "hello world",
+			"test2": 123,
+		},
+	}
 	if err := s.Set(o, nil); err != nil {
 		t.Error(err)
 		return
@@ -29,8 +32,11 @@ func TestGetSet(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	s := NewStore(nil)
-	o := NewObject(nil)
-	o.Data["test"] = "hello world"
+	o := &Object{
+		Data: map[string]interface{}{
+			"test": "hello world",
+		},
+	}
 	if err := s.Set(o, nil); err != nil {
 		t.Error(err)
 		return
@@ -48,9 +54,12 @@ func TestDelete(t *testing.T) {
 
 func TestIndexSet(t *testing.T) {
 	s := NewStore(nil)
-	o := NewObject(nil)
-	o.Data["test"] = "hello world"
-	o.Data["test_long"] = ""
+	o := &Object{
+		Data: map[string]interface{}{
+			"test":      "hello world",
+			"test_long": "",
+		},
+	}
 	for i := 0; i < 256; i++ {
 		o.Data["test_long"] = o.Data["test_long"].(string) + "a"
 	}
@@ -74,11 +83,14 @@ func TestIndexSet(t *testing.T) {
 func TestQuery(t *testing.T) {
 
 	s := NewStore(nil)
-	o := NewObject(nil)
-	o.Data["test_int"] = 123
-	o.Data["test_float"] = 123.4
-	o.Data["test_bool"] = false
-	o.Data["test_string"] = "hello world"
+	o := &Object{
+		Data: map[string]interface{}{
+			"test_int":    123,
+			"test_float":  123.4,
+			"test_bool":   false,
+			"test_string": "hello world",
+		},
+	}
 	if err := s.Set(o, nil); err != nil {
 		t.Error(err)
 		return
@@ -142,19 +154,28 @@ func TestQuery(t *testing.T) {
 func TestQueryMulti(t *testing.T) {
 
 	s := NewStore(nil)
-	o1 := NewObject(nil)
-	o1.Data["test_str"] = "hello"
-	o1.Data["test_int"] = 1
+	o1 := &Object{
+		Data: map[string]interface{}{
+			"test_str": "hello",
+			"test_int": 1,
+		},
+	}
 	s.Set(o1, nil)
 
-	o2 := NewObject(nil)
-	o2.Data["test_str"] = "world"
-	o2.Data["test_int"] = 99
+	o2 := &Object{
+		Data: map[string]interface{}{
+			"test_str": "world",
+			"test_int": 99,
+		},
+	}
 	s.Set(o2, nil)
 
-	o3 := NewObject(nil)
-	o2.Data["test_str"] = "world"
-	o2.Data["test_float"] = 153.4
+	o3 := &Object{
+		Data: map[string]interface{}{
+			"test_str":   "world",
+			"test_float": 153.4,
+		},
+	}
 	s.Set(o3, nil)
 
 	res, err := s.Query("test_int >= 1", nil)
@@ -172,10 +193,13 @@ func TestLargeIndex(t *testing.T) {
 	s := NewStore(nil)
 	// build very large index
 	for i := 0; i < 4096; i++ {
-		o := NewObject(nil)
-		o.Data["test_int"] = rand.Int()
-		o.Data["test_float"] = rand.Float64()
-		o.Data["test_letter"] = string(byte(65 + (i % 24)))
+		o := &Object{
+			Data: map[string]interface{}{
+				"test_int":    rand.Int(),
+				"test_float":  rand.Float64(),
+				"test_letter": string(byte(65 + (i % 24))),
+			},
+		}
 		s.Set(o, nil)
 	}
 	index, _ := s.Index()
@@ -195,11 +219,14 @@ func TestLargeIndex(t *testing.T) {
 func TestSyncIndex(t *testing.T) {
 
 	s := NewStore(nil)
-	o := NewObject(nil)
-	o.Data["test_int"] = 123
-	o.Data["test_float"] = 123.4
-	o.Data["test_bool"] = false
-	o.Data["test_string"] = "hello world"
+	o := &Object{
+		Data: map[string]interface{}{
+			"test_int":    123,
+			"test_float":  123.4,
+			"test_bool":   false,
+			"test_string": "hello world",
+		},
+	}
 	if err := s.Set(o, nil); err != nil {
 		t.Error(err)
 		return

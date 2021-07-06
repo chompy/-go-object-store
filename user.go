@@ -6,33 +6,34 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/pkg/errors"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 const passwordMinLength = 8
+const sessionTimeout = 3600
 
 // User defines an user accessing the key/value store.
 type User struct {
-	UID          string        `json:"uid"`
-	Username     string        `json:"username"`
-	PasswordHash string        `json:"password_hash"`
-	PasswordSalt string        `json:"password_salt"`
-	Created      time.Time     `json:"created"`
-	Modified     time.Time     `json:"modified"`
-	Accessed     time.Time     `json:"accessed"`
-	Active       bool          `json:"active"`
-	Groups       []string      `json:"groups"`
-	Sessions     []UserSession `json:"sessions"`
+	UID      string    `json:"uid"`
+	Username string    `json:"username"`
+	Password string    `json:"password"`
+	Created  time.Time `json:"created"`
+	Modified time.Time `json:"modified"`
+	Accessed time.Time `json:"accessed"`
+	Active   bool      `json:"active"`
+	Groups   []string  `json:"groups"`
 }
 
-// UserSession is a single user sign on session.
-type UserSession struct {
-	Key     string    `json:"key"`
-	Salt    string    `json:"salt"`
-	IP      string    `json:"ip"`
-	Created time.Time `json:"created"`
+func generateObjectUID() string {
+	uid, err := gonanoid.New()
+	if err != nil {
+		return ""
+	}
+	return uid
 }
 
 // NewUser creates a new user.
@@ -42,32 +43,25 @@ func NewUser() *User {
 		return nil
 	}
 	return &User{
-		UID:          uid,
-		Username:     uid,
-		PasswordHash: "",
-		PasswordSalt: "",
-		Created:      time.Now(),
-		Modified:     time.Now(),
-		Accessed:     time.Now(),
-		Active:       true,
-		Groups:       make([]string, 0),
-		Sessions:     make([]UserSession, 0),
+		UID:      uid,
+		Username: uid,
+		Password: "",
+		Created:  time.Now(),
+		Modified: time.Now(),
+		Accessed: time.Now(),
+		Active:   true,
+		Groups:   make([]string, 0),
 	}
 }
 
-func (u *User) generatePasswordSalt() string {
-	randBytes := make([]byte, 32)
-	hashBytes := sha256.Sum256([]byte(
-		fmt.Sprintf("%x%s", randBytes, u.UID),
-	))
-	return fmt.Sprintf("%x", hashBytes)
-}
-
-func (u *User) generatePasswordHash(password string, salt string) string {
-	hashBytes := sha256.Sum256([]byte(
-		fmt.Sprintf("-1-n-$-%s%s", salt, password),
-	))
-	return fmt.Sprintf("%x", hashBytes)
+func (u *User) generatePasswordHash(password string) (string, error) {
+	hashedPasswordBytes, err := bcrypt.GenerateFromPassword(
+		[]byte(password), bcrypt.DefaultCost,
+	)
+	if err != nil {
+		return "", errors.WithStack(err)
+	}
+	return string(hashedPasswordBytes), nil
 }
 
 // SetPassword sets the user's password.
@@ -77,37 +71,24 @@ func (u *User) SetPassword(password string) error {
 	if len(password) < passwordMinLength {
 		return errors.WithStack(ErrInvalidPassword)
 	}
-	u.PasswordSalt = u.generatePasswordSalt()
-	u.PasswordHash = u.generatePasswordHash(password, u.PasswordSalt)
-	return nil
+	var err error
+	u.Password, err = u.generatePasswordHash(password)
+	return errors.WithStack(err)
 }
 
 // CheckPassword returns true if given password matches hash.
 func (u *User) CheckPassword(password string) bool {
-	return u.generatePasswordHash(password, u.PasswordSalt) == u.PasswordHash
+	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)); err != nil {
+		return false
+	}
+	return true
 }
 
-// NewSession creates a new user session.
-func (u *User) NewSession(ip string) *UserSession {
-	keySalt, err := gonanoid.New()
-	if err != nil {
-		return nil
-	}
+func (u *User) generateSessionKey() string {
 	randBytes := make([]byte, 32)
 	rand.Read(randBytes)
-	keySalt = fmt.Sprintf("%s%x", keySalt, randBytes)
-	created := time.Now()
-	return &UserSession{
-		Key:     u.generateSessionKey(keySalt, created, ip),
-		Salt:    keySalt,
-		Created: created,
-		IP:      ip,
-	}
-}
-
-func (u *User) generateSessionKey(salt string, created time.Time, ip string) string {
 	key := sha256.Sum256([]byte(
-		fmt.Sprintf("-!-#-b-%s%s%s%s%s%s%s", salt, u.UID, u.Username, u.PasswordSalt, u.Created.String(), created.String(), ip),
+		fmt.Sprintf("%x%s%s", randBytes, u.UID, u.Username),
 	))
 	return fmt.Sprintf("%x", key)
 }

@@ -102,9 +102,12 @@ func TestUserPermission(t *testing.T) {
 	u.Username = "testuser"
 	u.Groups = []string{"test1", "test2"}
 
-	o1 := NewObject(nil)
-	o1.Data["type"] = "page"
-	o1.Data["content"] = "Test page 1"
+	o1 := &Object{
+		Data: map[string]interface{}{
+			"type":    "page",
+			"content": "Test page 1",
+		},
+	}
 
 	m, err := c.UserGroups["test1"].CanGet(o1.Index())
 	if err != nil {
@@ -174,9 +177,11 @@ func TestStoreWithUser(t *testing.T) {
 
 	s := NewStore(c)
 	u := NewUser()
-
-	o := NewObject(u)
-	o.Data["type"] = "food"
+	o := &Object{
+		Data: map[string]interface{}{
+			"type": "food",
+		},
+	}
 
 	// no user group, expect permission error
 	if err := s.Set(o, u); !errors.Is(err, ErrPermission) {
@@ -235,9 +240,12 @@ func TestStoreWithUser(t *testing.T) {
 
 	// create a new object not owned by user, try to read, expect fail
 	u.Groups = []string{"food_writer"}
-	o2 := NewObject(nil)
-	o2.Data["type"] = "food"
-	o2.Data["name"] = "Salad"
+	o2 := &Object{
+		Data: map[string]interface{}{
+			"type": "food",
+			"name": "Salad",
+		},
+	}
 	s.Set(o2, nil)
 	if _, err := s.Get(o2.UID, u); !errors.Is(err, ErrPermission) {
 		t.Error("expected permission error")

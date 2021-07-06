@@ -18,6 +18,7 @@ const (
 	usernamePrefix = "username_"
 	objectPrefix   = "obj_"
 	indexName      = "index"
+	rootUser       = "root"
 )
 
 // Store is the key/value store interface.
@@ -217,32 +218,52 @@ func (s *Store) Set(o *Object, u *User) error {
 	if o == nil {
 		return errors.WithStack(ErrMissingObject)
 	}
+	// new object
+	isNew := false
 	if o.UID == "" {
-		return errors.WithStack(ErrMissingUID)
+		isNew = true
+		o.UID = generateObjectUID()
+		o.Author = rootUser
+		if u != nil {
+			o.Author = u.UID
+		}
+		o.Created = time.Now()
 	}
-
 	defer s.sync.Unlock()
 	s.sync.Lock()
 	// check against previous existing object
 	if u != nil {
-		existingObj, err := s.Get(o.UID, nil)
-		if err != nil && !errors.Is(err, ErrNotFound) {
-			return errors.WithStack(err)
+		var existingObj *Object
+		if !isNew {
+			var err error
+			existingObj, err = s.Get(o.UID, nil)
+			if err != nil && !errors.Is(err, ErrNotFound) {
+				return errors.WithStack(err)
+			}
 		}
-		if existingObj == nil {
+		if existingObj == nil || isNew {
 			// if no existing object then use 'set' permission
 			if err := s.checkPermission(permSet, u, o.Index()); err != nil {
 				return errors.WithStack(err)
 			}
 		} else if existingObj != nil {
 			// if existing object then use 'update' permission
+			if err := s.checkPermission(permUpdate, u, existingObj.Index()); err != nil {
+				return errors.WithStack(err)
+			}
 			if err := s.checkPermission(permUpdate, u, o.Index()); err != nil {
 				return errors.WithStack(err)
 			}
+			// author and created aren't allowed to be changed
+			o.Author = existingObj.Author
+			o.Created = existingObj.Created
 		}
 	}
-
 	o.Modified = time.Now()
+	o.Modifier = rootUser
+	if u != nil {
+		o.Modifier = u.UID
+	}
 	if err := s.client.Set(objectPrefix+o.UID, o); err != nil {
 		return errors.WithStack(err)
 	}
@@ -322,7 +343,7 @@ func (s *Store) SetUser(u *User) error {
 	if u.Username == "" {
 		return errors.WithStack(ErrMissingUsername)
 	}
-	if u.PasswordHash == "" {
+	if u.Password == "" {
 		return errors.WithStack(ErrInvalidPassword)
 	}
 	defer s.sync.Unlock()

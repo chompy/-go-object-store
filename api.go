@@ -19,9 +19,10 @@ const (
 
 // APIRequest defines an API request.
 type APIRequest struct {
-	AuthKey  string `json:"auth"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	SessionKey string      `json:"key,omitempty"`
+	Username   string      `json:"username,omitempty"`
+	Password   string      `json:"password,omitempty"`
+	Objects    []APIObject `json:"objects,omitempty"`
 }
 
 func (a *APIRequest) sanitizeValues() {
@@ -31,8 +32,8 @@ func (a *APIRequest) sanitizeValues() {
 
 // APIResponse defines an API response.
 type APIResponse struct {
-	Success bool      `json:"success"`
-	Message string    `json:"message,omitempty"`
-	Objects []*Object `json:"objects,omitempty"`
-	User    *User     `json:"user,omitempty"`
+	Success bool        `json:"success"`
+	Message string      `json:"message,omitempty"`
+	Key     string      `json:"key,omitempty"`
+	Objects []APIObject `json:"objects,omitempty"`
 }
