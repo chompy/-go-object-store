@@ -6,38 +6,28 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
-	"github.com/astaxie/beego/session"
 	"github.com/pkg/errors"
 )
 
-var globalSessions *session.Manager
 var store *Store
 
 func listen(config *Config) error {
 	// init store
 	store = NewStore(config)
 	sessions = make([]*UserSession, 0)
-
-	u := NewUser()
-	u.Username = "nathan"
-	u.SetPassword("test1234")
-	u.Groups = []string{"admin"}
-	store.SetUser(u)
-
-	// start sessions
-	var err error
-	globalSessions, err = session.NewManager(
-		"memory",
-		&session.ManagerConfig{
-			CookieName:     "sessid",
-			CookieLifeTime: 3600,
-		},
-	)
-	if err != nil {
-		return errors.WithStack(err)
+	// init anonymous user
+	u, _ := store.GetUserByUsername(anonymousUser)
+	if u == nil {
+		u := NewUser()
+		u.Username = anonymousUser
+		u.SetPassword(anonymousUser)
+		u.Groups = []string{anonymousUser}
+		if err := store.SetUser(u); err != nil {
+			return errors.WithStack(err)
+		}
 	}
-	go globalSessions.GC()
 	// endpoints
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/set", set)
@@ -50,6 +40,36 @@ func listen(config *Config) error {
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func parsePostBody(r *http.Request) (APIRequest, error) {
+	apiReq := APIRequest{
+		IP: r.RemoteAddr,
+	}
+	rBody, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return apiReq, errors.WithStack(err)
+	}
+	if len(rBody) > 0 {
+		if err := json.Unmarshal(rBody, &apiReq); err != nil {
+			return apiReq, errors.WithStack(err)
+		}
+	}
+	apiReq.sanitizeValues()
+	return apiReq, nil
+}
+
+func getUserFromSessionKey(key string) (*User, error) {
+	if key == "" {
+		user, err := store.GetUserByUsername(anonymousUser)
+		return user, errors.WithStack(err)
+	}
+	sess := getSessionFromKey(key)
+	if sess == nil {
+		return nil, errors.WithStack(ErrPermission)
+	}
+	user, err := store.GetUser(sess.UserUID)
+	return user, errors.WithStack(err)
 }
 
 func errorResponse(w http.ResponseWriter, err error) {
@@ -78,31 +98,19 @@ func sendResponse(w http.ResponseWriter, status int, resp *APIResponse) {
 	}
 }
 
-func request(res APIResource, w http.ResponseWriter, r *http.Request) {
-	// read request
-	apiReq := APIRequest{}
-	rBody, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		errorResponse(w, err)
-		return
-	}
-	if len(rBody) > 0 {
-		if err := json.Unmarshal(rBody, &apiReq); err != nil {
-			errorResponse(w, err)
-			return
-		}
-	}
-	apiReq.sanitizeValues()
+func request(res APIResource, req APIRequest, w http.ResponseWriter) {
+	// log request
+	req.Log(res)
 	// handle request
 	switch res {
 	case APILogin:
 		{
-			if apiReq.Username == "" || apiReq.Password == "" {
+			if req.Username == "" || req.Password == "" {
 				errorResponse(w, ErrInvalidCreds)
 				return
 			}
 			// check username/password
-			user, err := store.GetUserByUsername(apiReq.Username)
+			user, err := store.GetUserByUsername(req.Username)
 			if err != nil {
 				if errors.Is(err, ErrNotFound) {
 					errorResponse(w, ErrInvalidCredientials)
@@ -111,12 +119,12 @@ func request(res APIResource, w http.ResponseWriter, r *http.Request) {
 				errorResponse(w, err)
 				return
 			}
-			if !user.CheckPassword(apiReq.Password) {
+			if !user.CheckPassword(req.Password) {
 				errorResponse(w, ErrInvalidCredientials)
 				return
 			}
 			// prepare user session
-			sess, key := user.NewSession(user, r.RemoteAddr)
+			sess, key := user.NewSession(req.IP)
 			if sess == nil || key == "" {
 				errorResponse(w, ErrUnknown)
 				return
@@ -139,22 +147,51 @@ func request(res APIResource, w http.ResponseWriter, r *http.Request) {
 		}
 	case APIGet:
 		{
-			return
-		}
-	case APISet:
-		{
-			sess := getSessionFromKey(apiReq.SessionKey)
-			if sess == nil {
-				errorResponse(w, ErrPermission)
+			if len(req.Objects) == 0 {
+				errorResponse(w, ErrObjectNotSpecified)
 				return
 			}
-			user, err := store.GetUser(sess.UserUID)
+			user, err := getUserFromSessionKey(req.SessionKey)
 			if err != nil {
 				errorResponse(w, err)
 				return
 			}
 			respObjs := make([]APIObject, 0)
-			for _, o := range apiReq.Objects {
+			for _, o := range req.Objects {
+				// ensure object isn't already in response
+				hasObj := false
+				for _, ro := range respObjs {
+					if ro.UID() == o.UID() {
+						hasObj = true
+						break
+					}
+				}
+				if hasObj {
+					continue
+				}
+				// fetch
+				respObj, err := store.Get(o.Object().UID, user)
+				if err != nil {
+					errorResponse(w, err)
+					return
+				}
+				respObjs = append(respObjs, respObj.API())
+			}
+			sendResponse(w, http.StatusOK, &APIResponse{
+				Success: true,
+				Objects: respObjs,
+			})
+			return
+		}
+	case APISet:
+		{
+			user, err := getUserFromSessionKey(req.SessionKey)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			respObjs := make([]APIObject, 0)
+			for _, o := range req.Objects {
 				if o == nil {
 					continue
 				}
@@ -171,39 +208,135 @@ func request(res APIResource, w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	case APIDelete:
+		{
+			user, err := getUserFromSessionKey(req.SessionKey)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			for _, o := range req.Objects {
+				if o == nil {
+					continue
+				}
+				if err := store.Delete(o.Object(), user); err != nil {
+					errorResponse(w, err)
+					return
+				}
+			}
+			sendResponse(w, http.StatusOK, &APIResponse{
+				Success: true,
+			})
+		}
+	case APIQuery:
+		{
+			user, err := getUserFromSessionKey(req.SessionKey)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			if req.Query == "" {
+				errorResponse(w, ErrInvalidArg)
+				return
+			}
+			objs, err := store.Query(req.Query, user)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			respObjs := make([]APIObject, 0)
+			for _, o := range objs {
+				respObjs = append(respObjs, o.API())
+			}
+			sendResponse(w, http.StatusOK, &APIResponse{
+				Success: true,
+				Objects: respObjs,
+			})
+			return
+		}
 	}
 	errorResponse(w, ErrInvalidResource)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
-	request(APILogin, w, r)
+	switch r.Method {
+	case http.MethodPost:
+		{
+			req, err := parsePostBody(r)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			request(APILogin, req, w)
+			return
+		}
+	}
+	errorResponse(w, ErrAPIInvalidMethod)
 }
 
 func set(w http.ResponseWriter, r *http.Request) {
-	request(APISet, w, r)
+	switch r.Method {
+	case http.MethodPost, http.MethodPut:
+		{
+			req, err := parsePostBody(r)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			request(APISet, req, w)
+			return
+		}
+	}
+	errorResponse(w, ErrAPIInvalidMethod)
 }
 
 func get(w http.ResponseWriter, r *http.Request) {
-	request(APIGet, w, r)
+	switch r.Method {
+	case http.MethodGet:
+		{
+			uids := strings.Split(r.URL.Query().Get("uid"), ",")
+			req := APIRequest{
+				SessionKey: r.URL.Query().Get("key"),
+				Objects:    make([]APIObject, 0),
+			}
+			for _, uid := range uids {
+				if uid != "" {
+					req.Objects = append(req.Objects, APIObject{"_uid": uid})
+				}
+			}
+			request(APIGet, req, w)
+			return
+		}
+	case http.MethodPost:
+		{
+			req, err := parsePostBody(r)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			request(APIGet, req, w)
+			return
+		}
+	}
+	errorResponse(w, ErrAPIInvalidMethod)
 }
 
 func delete(w http.ResponseWriter, r *http.Request) {
-	request(APIDelete, w, r)
+	switch r.Method {
+	case http.MethodPost, http.MethodDelete:
+		{
+			req, err := parsePostBody(r)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			request(APIDelete, req, w)
+			return
+		}
+	}
+	errorResponse(w, ErrAPIInvalidMethod)
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-
-	/*switch r.Method {
-	case http.MethodPut, http.MethodPost:
-		{
-			request(APISet, w, r)
-			return
-		}
-	case http.MethodDelete:
-		{
-			request(APIDelete, w, r)
-			return
-		}
-	}*/
 	errorResponse(w, ErrInvalidResource)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -270,6 +271,47 @@ func TestStoreWithUser(t *testing.T) {
 	u.Groups = []string{"food_reader", "food_writer", "food_updater"}
 	if err := s.Set(o2, u); err != nil {
 		t.Error(err)
+		return
+	}
+
+}
+
+func TestUserSession(t *testing.T) {
+
+	// create test user
+	u := NewUser()
+	u.Username = "testuser1"
+	u.SetPassword("test1234")
+
+	// init session
+	sessions = make([]*UserSession, 0)
+
+	sess, key := u.NewSession("127.0.0.1")
+	sessions = append(sessions, sess)
+
+	// ensure session check doesn't remove session prematurely
+	if len(sessions) != 1 {
+		t.Error("unexpected session size")
+		return
+	}
+	checkSessions()
+	if len(sessions) != 1 {
+		t.Error("unexpected session size")
+		return
+	}
+
+	// ensure session can be obtained with session key
+	sess = getSessionFromKey(key)
+	if sess == nil {
+		t.Error("session key did not match")
+		return
+	}
+
+	// check that session is removed when older than sessionTimeout
+	sess.Created = time.Now().Add(-(time.Second * sessionTimeout * 2))
+	checkSessions()
+	if len(sessions) > 0 {
+		t.Error("unexpected session size")
 		return
 	}
 

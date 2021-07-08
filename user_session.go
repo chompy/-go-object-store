@@ -17,7 +17,7 @@ type UserSession struct {
 }
 
 // NewSession creates a new session.
-func (u *User) NewSession(user *User, ip string) (*UserSession, string) {
+func (u *User) NewSession(ip string) (*UserSession, string) {
 	key := u.generateSessionKey()
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
 	if err != nil {
@@ -25,7 +25,7 @@ func (u *User) NewSession(user *User, ip string) (*UserSession, string) {
 		return nil, ""
 	}
 	s := &UserSession{
-		UserUID: user.UID,
+		UserUID: u.UID,
 		Key:     string(keyHash),
 		Created: time.Now(),
 		IP:      ip,

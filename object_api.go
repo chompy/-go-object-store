@@ -3,6 +3,14 @@ package main
 // APIObject is an object coming from the API.
 type APIObject map[string]interface{}
 
+// UID returns object uid.
+func (o *APIObject) UID() string {
+	if (*o)["_uid"] == nil {
+		return ""
+	}
+	return (*o)["_uid"].(string)
+}
+
 // Object returns object from API object data.
 func (o *APIObject) Object() *Object {
 	uid := (*o)["_uid"]

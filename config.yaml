@@ -8,13 +8,15 @@ user_groups:
     anonymous:
         rate_limit: 5000
         get: "type in ('group', 'question')"
-        create: false
-        modify: false
+        set: false
+        update: false
+        delete: false
 
     admin:
         get: true
-        create:  true
-        modify: true
+        set:  true
+        update: true
+        delete: true
 
 validation_rules:
     -

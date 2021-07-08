@@ -70,7 +70,7 @@ func (o *Object) API() APIObject {
 	out["_author"] = o.Author
 	out["_modifier"] = o.Modifier
 	out["_created"] = o.Created.Format(time.RFC3339)
-	out["_modifiered"] = o.Modified.Format(time.RFC3339)
+	out["_modified"] = o.Modified.Format(time.RFC3339)
 	for k, v := range o.Data {
 		out[k] = v
 	}

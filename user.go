@@ -15,6 +15,7 @@ import (
 
 const passwordMinLength = 8
 const sessionTimeout = 3600
+const anonymousUser = "anonymous"
 
 // User defines an user accessing the key/value store.
 type User struct {
