@@ -24,7 +24,6 @@ type User struct {
 	Password string    `json:"password"`
 	Created  time.Time `json:"created"`
 	Modified time.Time `json:"modified"`
-	Accessed time.Time `json:"accessed"`
 	Active   bool      `json:"active"`
 	Groups   []string  `json:"groups"`
 }
@@ -49,7 +48,6 @@ func NewUser() *User {
 		Password: "",
 		Created:  time.Now(),
 		Modified: time.Now(),
-		Accessed: time.Now(),
 		Active:   true,
 		Groups:   make([]string, 0),
 	}
@@ -92,4 +90,16 @@ func (u *User) generateSessionKey() string {
 		fmt.Sprintf("%x%s%s", randBytes, u.UID, u.Username),
 	))
 	return fmt.Sprintf("%x", key)
+}
+
+// API converts user to API object.
+func (u *User) API() APIObject {
+	out := make(APIObject)
+	out["_uid"] = u.UID
+	out["_username"] = u.Username
+	out["_active"] = u.Active
+	out["_groups"] = u.Groups
+	out["_created"] = u.Created.Format(time.RFC3339)
+	out["_modified"] = u.Modified.Format(time.RFC3339)
+	return out
 }

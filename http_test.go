@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -133,13 +132,41 @@ func TestHTTPLogin(t *testing.T) {
 		return
 	}
 
+	// read api response, check key
 	apiResp := APIResponse{}
 	rawResp, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal(rawResp, &apiResp)
-
-	log.Println(string(rawResp))
 	if apiResp.Key == "" {
 		t.Error("expected key in response")
+	}
+
+	// test set
+	req = APIRequest{
+		SessionKey: apiResp.Key,
+		Objects: []APIObject{
+			APIObject{"test": "hello world"},
+		},
+	}
+	reqJSON, _ = json.Marshal(req)
+	reqReader = bytes.NewReader(reqJSON)
+	resp, err = http.Post(fmt.Sprintf("http://localhost:%d/set", c.HTTP.Port), "application/json", reqReader)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	rawResp, _ = ioutil.ReadAll(resp.Body)
+	json.Unmarshal(rawResp, &apiResp)
+	if apiResp.Key == "" {
+		t.Error("expected key in response")
+	}
+	if !apiResp.Success {
+		t.Error("expected success response")
+	}
+	if apiResp.Objects[0].Object().UID == "" {
+		t.Error("expected response object to have uid")
+	}
+	if apiResp.Objects[0].Object().Data["test"] != "hello world" {
+		t.Error("unexpected value in response object")
 	}
 
 }

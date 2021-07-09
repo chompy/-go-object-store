@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/philippgille/gokv/file"
 	"github.com/philippgille/gokv/redis"
 
 	"github.com/philippgille/gokv/syncmap"
@@ -28,13 +29,13 @@ type Config struct {
 }
 
 // loadConfig loads config file.
-func loadConfig() (*Config, error) {
+func loadConfig(path string) (*Config, error) {
 	// set default
 	config := &Config{}
 	config.HTTP.Port = 8081
 	config.Storage.Type = "memory"
 	// load config
-	raw, err := ioutil.ReadFile(configPath)
+	raw, err := ioutil.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return config, errors.WithStack(err)
 	}
@@ -60,6 +61,20 @@ func (c *Config) storageClient() gokv.Store {
 			client, err := redis.NewClient(opts)
 			if err != nil {
 				logWarnErr(err, "redis client error")
+				return syncmap.NewStore(syncmap.DefaultOptions)
+			}
+			return client
+		}
+	case "file":
+		{
+			opts := file.DefaultOptions
+			opts.Directory = "data"
+			if c.Storage.Config["path"] != nil {
+				opts.Directory = c.Storage.Config["path"].(string)
+			}
+			client, err := file.NewStore(opts)
+			if err != nil {
+				logWarnErr(err, "file client error")
 				return syncmap.NewStore(syncmap.DefaultOptions)
 			}
 			return client

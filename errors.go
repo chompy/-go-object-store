@@ -22,6 +22,7 @@ var (
 	ErrInvalidPassword     = errors.New("invalid password, cannot be empty or less than eight characters")
 	ErrUnknown             = errors.New("an unknown error has occured")
 	ErrAPIInvalidMethod    = errors.New("method not supported")
+	ErrInvalidUsername     = errors.New("invalid or missing username")
 )
 
 func errHTTPResponseCode(err error) int {
