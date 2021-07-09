@@ -10,80 +10,12 @@ import (
 	"time"
 )
 
-func TestHTTPGetNotFound(t *testing.T) {
-	c := &Config{}
-	c.UserGroups = map[string]UserGroup{
-		"anonymous": UserGroup{
-			Get:    false,
-			Set:    false,
-			Update: false,
-			Delete: false,
-		},
-	}
-	c.HTTP.Port = 31582
-	go listen(c)
-	time.Sleep(time.Second)
-	resp, err := http.Get(
-		fmt.Sprintf("http://localhost:%d/get?uid=1", c.HTTP.Port),
-	)
-	if err != nil {
-		t.Error(err)
-	}
-	if resp.StatusCode != http.StatusNotFound {
-		t.Error("expected not found status")
-	}
-}
+const testHTTPPort = 31582
 
-func TestHTTPGet(t *testing.T) {
-	c := &Config{}
-	c.UserGroups = map[string]UserGroup{
-		"anonymous": UserGroup{
-			Get:    true,
-			Set:    false,
-			Update: false,
-			Delete: false,
-		},
+func initTestServer() {
+	if store != nil {
+		return
 	}
-	c.HTTP.Port = 31582
-	go listen(c)
-	time.Sleep(time.Second)
-
-	// create object
-	o := &Object{
-		Data: map[string]interface{}{
-			"test": "hello world",
-		},
-	}
-	store.Set(o, nil)
-
-	// http request
-	resp, err := http.Get(
-		fmt.Sprintf("http://localhost:%d/get?uid=%s", c.HTTP.Port, o.UID),
-	)
-	if err != nil {
-		t.Error(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Error("unexpected status")
-	}
-
-	// read response
-	respRaw, _ := ioutil.ReadAll(resp.Body)
-	apiResp := APIResponse{}
-	json.Unmarshal(respRaw, &apiResp)
-	if !apiResp.Success {
-		t.Error("expected success")
-	}
-
-	// compare api obj to local obj
-	apiObj := apiResp.Objects[0].Object()
-	if apiObj.UID != o.UID || apiObj.Data["test"] != o.Data["test"] {
-		t.Error("expected object in api response")
-	}
-
-}
-
-func TestHTTPLogin(t *testing.T) {
 	c := &Config{}
 	c.UserGroups = map[string]UserGroup{
 		"anonymous": UserGroup{
@@ -99,9 +31,69 @@ func TestHTTPLogin(t *testing.T) {
 			Delete: true,
 		},
 	}
-	c.HTTP.Port = 31582
+	c.HTTP.Port = testHTTPPort
 	go listen(c)
 	time.Sleep(time.Second)
+}
+
+func TestHTTPGetNotFound(t *testing.T) {
+	initTestServer()
+	resp, err := http.Get(
+		fmt.Sprintf("http://localhost:%d/get?uid=1", testHTTPPort),
+	)
+	if err != nil {
+		t.Error(err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Error("expected not found status")
+	}
+}
+
+func TestHTTPGet(t *testing.T) {
+
+	initTestServer()
+
+	// create object
+	o := &Object{
+		Data: map[string]interface{}{
+			"test": "hello world",
+		},
+	}
+	store.Set(o, nil)
+
+	// http request
+	resp, err := http.Get(
+		fmt.Sprintf("http://localhost:%d/get?uid=%s", testHTTPPort, o.UID),
+	)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Error("unexpected status")
+		return
+	}
+
+	// read response
+	respRaw, _ := ioutil.ReadAll(resp.Body)
+	apiResp := APIResponse{}
+	json.Unmarshal(respRaw, &apiResp)
+	if !apiResp.Success {
+		t.Error("expected success")
+		return
+	}
+
+	// compare api obj to local obj
+	apiObj := apiResp.Objects[0].Object()
+	if apiObj.UID != o.UID || apiObj.Data["test"] != o.Data["test"] {
+		t.Error("expected object in api response")
+		return
+	}
+
+}
+
+func TestHTTPLogin(t *testing.T) {
+	initTestServer()
 
 	// create user
 	u := NewUser()
@@ -120,7 +112,7 @@ func TestHTTPLogin(t *testing.T) {
 	reqReader := bytes.NewReader(reqJSON)
 
 	// submit request
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/login", c.HTTP.Port), "application/json", reqReader)
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/login", testHTTPPort), "application/json", reqReader)
 	if err != nil {
 		t.Error(err)
 		return
@@ -149,7 +141,7 @@ func TestHTTPLogin(t *testing.T) {
 	}
 	reqJSON, _ = json.Marshal(req)
 	reqReader = bytes.NewReader(reqJSON)
-	resp, err = http.Post(fmt.Sprintf("http://localhost:%d/set", c.HTTP.Port), "application/json", reqReader)
+	resp, err = http.Post(fmt.Sprintf("http://localhost:%d/set", testHTTPPort), "application/json", reqReader)
 	if err != nil {
 		t.Error(err)
 		return

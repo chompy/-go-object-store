@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +17,6 @@ const (
 	usernamePrefix = "username_"
 	objectPrefix   = "obj_"
 	indexName      = "index"
-	rootUser       = "root"
 )
 
 // Store is the key/value store interface.
@@ -176,7 +174,6 @@ func (s *Store) Sync() error {
 				break
 			}
 		}
-		log.Println("TESTdsfsd", hasChange)
 	}
 	// update remote only if local has changes
 	if hasChange {
@@ -223,7 +220,7 @@ func (s *Store) Set(o *Object, u *User) error {
 	if o.UID == "" {
 		isNew = true
 		o.UID = generateObjectUID()
-		o.Author = rootUser
+		o.Author = ""
 		if u != nil {
 			o.Author = u.UID
 		}
@@ -260,7 +257,7 @@ func (s *Store) Set(o *Object, u *User) error {
 		}
 	}
 	o.Modified = time.Now()
-	o.Modifier = rootUser
+	o.Modifier = ""
 	if u != nil {
 		o.Modifier = u.UID
 	}
