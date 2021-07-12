@@ -64,7 +64,7 @@ func (g *UserGroup) compile() error {
 
 func (g UserGroup) check(permType string, o *IndexObject) (bool, error) {
 	if o == nil {
-		return false, ErrMissingObject
+		return false, errors.WithStack(ErrMissingObject)
 	}
 	perm := g.getPerm(permType)
 	switch perm := perm.(type) {

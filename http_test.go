@@ -19,7 +19,7 @@ func initTestServer() {
 	c := &Config{}
 	c.UserGroups = map[string]UserGroup{
 		"anonymous": UserGroup{
-			Get:    "level = 1",
+			Get:    true,
 			Set:    false,
 			Update: false,
 			Delete: false,

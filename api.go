@@ -13,11 +13,14 @@ const (
 	APILogin APIResource = 1
 	// APILogout defines logout action.
 	APILogout APIResource = 2
-	// APIGet defines get
-	APIGet    APIResource = 3
-	APISet    APIResource = 4
+	// APIGet defines get object action.
+	APIGet APIResource = 3
+	// APISet defines set object action.
+	APISet APIResource = 4
+	// APIDelete defines delete object action.
 	APIDelete APIResource = 5
-	APIQuery  APIResource = 6
+	// APIQuery defines query object action.
+	APIQuery APIResource = 6
 )
 
 // Name returns string name for API resource.
