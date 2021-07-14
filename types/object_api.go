@@ -1,4 +1,4 @@
-package main
+package types
 
 // APIObject is an object coming from the API.
 type APIObject map[string]interface{}

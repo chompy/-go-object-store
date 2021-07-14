@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/spf13/cobra"
 )
@@ -21,7 +22,7 @@ func loadConfigFromCommand() (*Config, error) {
 
 func cliHandleError(err error) {
 	if err != nil {
-		resp := APIResponse{
+		resp := types.APIResponse{
 			Success: false,
 			Message: err.Error(),
 		}
@@ -35,8 +36,8 @@ func cliHandleError(err error) {
 	}
 }
 
-func cliResponse(objs []APIObject) {
-	resp := APIResponse{
+func cliResponse(objs []types.APIObject) {
+	resp := types.APIResponse{
 		Success: true,
 		Objects: objs,
 	}

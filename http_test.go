@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
 const testHTTPPort = 31582
@@ -54,7 +56,7 @@ func TestHTTPGet(t *testing.T) {
 	initTestServer()
 
 	// create object
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test": "hello world",
 		},
@@ -76,7 +78,7 @@ func TestHTTPGet(t *testing.T) {
 
 	// read response
 	respRaw, _ := ioutil.ReadAll(resp.Body)
-	apiResp := APIResponse{}
+	apiResp := types.APIResponse{}
 	json.Unmarshal(respRaw, &apiResp)
 	if !apiResp.Success {
 		t.Error("expected success")
@@ -96,15 +98,17 @@ func TestHTTPLogin(t *testing.T) {
 	initTestServer()
 
 	// create user
-	u := NewUser()
+	u := &types.User{
+		Username: "testuser1",
+	}
 	u.Username = "testuser1"
 	password := "test1234"
-	u.SetPassword(password)
+	setPassword(password, u)
 	u.Groups = []string{"admin"}
 	store.SetUser(u)
 
 	// create request
-	req := APIRequest{
+	req := types.APIRequest{
 		Username: u.Username,
 		Password: password,
 	}
@@ -125,7 +129,7 @@ func TestHTTPLogin(t *testing.T) {
 	}
 
 	// read api response, check key
-	apiResp := APIResponse{}
+	apiResp := types.APIResponse{}
 	rawResp, _ := ioutil.ReadAll(resp.Body)
 	json.Unmarshal(rawResp, &apiResp)
 	if apiResp.Key == "" {
@@ -133,10 +137,10 @@ func TestHTTPLogin(t *testing.T) {
 	}
 
 	// test set
-	req = APIRequest{
+	req = types.APIRequest{
 		SessionKey: apiResp.Key,
-		Objects: []APIObject{
-			APIObject{"test": "hello world"},
+		Objects: []types.APIObject{
+			types.APIObject{"test": "hello world"},
 		},
 	}
 	reqJSON, _ = json.Marshal(req)

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/caibirdme/yql"
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
 const (
@@ -62,7 +63,7 @@ func (g *UserGroup) compile() error {
 	return nil
 }
 
-func (g UserGroup) check(permType string, o *IndexObject) (bool, error) {
+func (g UserGroup) check(permType string, o *types.IndexObject) (bool, error) {
 	if o == nil {
 		return false, errors.WithStack(ErrMissingObject)
 	}
@@ -90,21 +91,21 @@ func (g UserGroup) check(permType string, o *IndexObject) (bool, error) {
 }
 
 // CanGet returns true if group permission allows reading given object.
-func (g UserGroup) CanGet(o *IndexObject) (bool, error) {
+func (g UserGroup) CanGet(o *types.IndexObject) (bool, error) {
 	return g.check(permGet, o)
 }
 
 // CanSet returns true if group permission allow creation of given object.
-func (g UserGroup) CanSet(o *IndexObject) (bool, error) {
+func (g UserGroup) CanSet(o *types.IndexObject) (bool, error) {
 	return g.check(permSet, o)
 }
 
 // CanUpdate returns true if group permission allows updating the given object.
-func (g UserGroup) CanUpdate(o *IndexObject) (bool, error) {
+func (g UserGroup) CanUpdate(o *types.IndexObject) (bool, error) {
 	return g.check(permUpdate, o)
 }
 
 // CanDelete returns true if group permission allows deleting the given object.
-func (g UserGroup) CanDelete(o *IndexObject) (bool, error) {
+func (g UserGroup) CanDelete(o *types.IndexObject) (bool, error) {
 	return g.check(permDelete, o)
 }

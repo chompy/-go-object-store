@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
 func TestGetSet(t *testing.T) {
 	s := NewStore(nil)
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test":  "hello world",
 			"test2": 123,
@@ -32,7 +33,7 @@ func TestGetSet(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	s := NewStore(nil)
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test": "hello world",
 		},
@@ -54,7 +55,7 @@ func TestDelete(t *testing.T) {
 
 func TestIndexSet(t *testing.T) {
 	s := NewStore(nil)
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test":      "hello world",
 			"test_long": "",
@@ -75,7 +76,7 @@ func TestIndexSet(t *testing.T) {
 	if index[0].UID != o.UID || index[0].Data["test"] != o.Data["test"] {
 		t.Error("indexed object does not match")
 	}
-	if len(index[0].Data["test_long"].(string)) > indexValueMaxSize {
+	if len(index[0].Data["test_long"].(string)) > types.IndexValueMaxSize {
 		t.Error("unexpected long string indexed")
 	}
 }
@@ -83,7 +84,7 @@ func TestIndexSet(t *testing.T) {
 func TestQuery(t *testing.T) {
 
 	s := NewStore(nil)
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test_int":    123,
 			"test_float":  123.4,
@@ -154,7 +155,7 @@ func TestQuery(t *testing.T) {
 func TestQueryMulti(t *testing.T) {
 
 	s := NewStore(nil)
-	o1 := &Object{
+	o1 := &types.Object{
 		Data: map[string]interface{}{
 			"test_str": "hello",
 			"test_int": 1,
@@ -162,7 +163,7 @@ func TestQueryMulti(t *testing.T) {
 	}
 	s.Set(o1, nil)
 
-	o2 := &Object{
+	o2 := &types.Object{
 		Data: map[string]interface{}{
 			"test_str": "world",
 			"test_int": 99,
@@ -170,7 +171,7 @@ func TestQueryMulti(t *testing.T) {
 	}
 	s.Set(o2, nil)
 
-	o3 := &Object{
+	o3 := &types.Object{
 		Data: map[string]interface{}{
 			"test_str":   "world",
 			"test_float": 153.4,
@@ -193,7 +194,7 @@ func TestLargeIndex(t *testing.T) {
 	s := NewStore(nil)
 	// build very large index
 	for i := 0; i < 4096; i++ {
-		o := &Object{
+		o := &types.Object{
 			Data: map[string]interface{}{
 				"test_int":    rand.Int(),
 				"test_float":  rand.Float64(),
@@ -219,7 +220,7 @@ func TestLargeIndex(t *testing.T) {
 func TestSyncIndex(t *testing.T) {
 
 	s := NewStore(nil)
-	o := &Object{
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"test_int":    123,
 			"test_float":  123.4,
@@ -245,7 +246,7 @@ func TestSyncIndex(t *testing.T) {
 
 	// fetch remote index prior to sync to ensure
 	// old value still remains
-	remoteIndex := make([]*IndexObject, 0)
+	remoteIndex := make([]*types.IndexObject, 0)
 	s.getRaw(indexName, &remoteIndex)
 	if len(remoteIndex) == 0 {
 		t.Error("unexpected remote index length")
@@ -256,7 +257,7 @@ func TestSyncIndex(t *testing.T) {
 
 	// sync and ensure remote index is now updated
 	s.Sync()
-	remoteIndex = make([]*IndexObject, 0)
+	remoteIndex = make([]*types.IndexObject, 0)
 	s.getRaw(indexName, &remoteIndex)
 	if remoteIndex[0].Data["test_string"] != "hello world two" {
 		t.Error("unexpected value in remote index")

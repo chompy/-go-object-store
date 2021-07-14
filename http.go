@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
 var store *Store
@@ -20,10 +21,10 @@ func listen(config *Config) error {
 	// init anonymous user
 	u, _ := store.GetUserByUsername(anonymousUser)
 	if u == nil {
-		u := NewUser()
-		u.Username = anonymousUser
-		u.SetPassword(anonymousUser)
-		u.Groups = []string{anonymousUser}
+		u := &types.User{
+			Username: anonymousUser,
+			Groups:   []string{anonymousUser},
+		}
 		if err := store.SetUser(u); err != nil {
 			return errors.WithStack(err)
 		}
@@ -42,8 +43,8 @@ func listen(config *Config) error {
 	return nil
 }
 
-func parsePostBody(r *http.Request) (APIRequest, error) {
-	apiReq := APIRequest{
+func parsePostBody(r *http.Request) (types.APIRequest, error) {
+	apiReq := types.APIRequest{
 		IP: r.RemoteAddr,
 	}
 	rBody, err := ioutil.ReadAll(r.Body)
@@ -55,11 +56,11 @@ func parsePostBody(r *http.Request) (APIRequest, error) {
 			return apiReq, errors.WithStack(err)
 		}
 	}
-	apiReq.sanitizeValues()
+	sanitizeValues(&apiReq)
 	return apiReq, nil
 }
 
-func getUserFromSessionKey(key string) (*User, error) {
+func getUserFromSessionKey(key string) (*types.User, error) {
 	if key == "" {
 		user, err := store.GetUserByUsername(anonymousUser)
 		return user, errors.WithStack(err)
@@ -74,13 +75,13 @@ func getUserFromSessionKey(key string) (*User, error) {
 
 func errorResponse(w http.ResponseWriter, err error) {
 	logWarnErr(err, "")
-	sendResponse(w, errHTTPResponseCode(err), &APIResponse{
+	sendResponse(w, errHTTPResponseCode(err), &types.APIResponse{
 		Success: false,
 		Message: err.Error(),
 	})
 }
 
-func sendResponse(w http.ResponseWriter, status int, resp *APIResponse) {
+func sendResponse(w http.ResponseWriter, status int, resp *types.APIResponse) {
 	w.WriteHeader(status)
 	if resp == nil {
 		io.WriteString(w, `{"success":false,"message":"An unknown error occurred."`)
@@ -98,12 +99,12 @@ func sendResponse(w http.ResponseWriter, status int, resp *APIResponse) {
 	}
 }
 
-func request(res APIResource, req APIRequest, w http.ResponseWriter) {
+func request(res types.APIResource, req types.APIRequest, w http.ResponseWriter) {
 	// log request
-	req.Log(res)
+	logAPIRequest(req, res)
 	// handle request
 	switch res {
-	case APILogin:
+	case types.APILogin:
 		{
 			if req.Username == "" || req.Password == "" {
 				errorResponse(w, ErrInvalidCreds)
@@ -119,12 +120,12 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 				errorResponse(w, err)
 				return
 			}
-			if !user.CheckPassword(req.Password) {
+			if !checkPassword(req.Password, user.PasswordHash) {
 				errorResponse(w, ErrInvalidCredientials)
 				return
 			}
 			// prepare user session
-			sess, key := user.NewSession(req.IP)
+			sess, key := newSession(user, req.IP)
 			if sess == nil || key == "" {
 				errorResponse(w, ErrUnknown)
 				return
@@ -132,20 +133,20 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 			checkSessions()
 			sessions = append(sessions, sess)
 			// send response
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 				Key:     key,
 			})
 			return
 		}
-	case APILogout:
+	case types.APILogout:
 		{
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 			})
 			return
 		}
-	case APIGet:
+	case types.APIGet:
 		{
 			if len(req.Objects) == 0 {
 				errorResponse(w, ErrObjectNotSpecified)
@@ -156,7 +157,7 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 				errorResponse(w, err)
 				return
 			}
-			respObjs := make([]APIObject, 0)
+			respObjs := make([]types.APIObject, 0)
 			for _, o := range req.Objects {
 				// ensure object isn't already in response
 				hasObj := false
@@ -177,20 +178,20 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 				}
 				respObjs = append(respObjs, respObj.API())
 			}
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 				Objects: respObjs,
 			})
 			return
 		}
-	case APISet:
+	case types.APISet:
 		{
 			user, err := getUserFromSessionKey(req.SessionKey)
 			if err != nil {
 				errorResponse(w, err)
 				return
 			}
-			respObjs := make([]APIObject, 0)
+			respObjs := make([]types.APIObject, 0)
 			for _, o := range req.Objects {
 				if o == nil {
 					continue
@@ -202,13 +203,13 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 				}
 				respObjs = append(respObjs, fullObj.API())
 			}
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 				Objects: respObjs,
 			})
 			return
 		}
-	case APIDelete:
+	case types.APIDelete:
 		{
 			user, err := getUserFromSessionKey(req.SessionKey)
 			if err != nil {
@@ -224,11 +225,11 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 					return
 				}
 			}
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 			})
 		}
-	case APIQuery:
+	case types.APIQuery:
 		{
 			user, err := getUserFromSessionKey(req.SessionKey)
 			if err != nil {
@@ -244,11 +245,11 @@ func request(res APIResource, req APIRequest, w http.ResponseWriter) {
 				errorResponse(w, err)
 				return
 			}
-			respObjs := make([]APIObject, 0)
+			respObjs := make([]types.APIObject, 0)
 			for _, o := range objs {
 				respObjs = append(respObjs, o.API())
 			}
-			sendResponse(w, http.StatusOK, &APIResponse{
+			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 				Objects: respObjs,
 			})
@@ -267,7 +268,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 				errorResponse(w, err)
 				return
 			}
-			request(APILogin, req, w)
+			request(types.APILogin, req, w)
 			return
 		}
 	}
@@ -283,7 +284,7 @@ func set(w http.ResponseWriter, r *http.Request) {
 				errorResponse(w, err)
 				return
 			}
-			request(APISet, req, w)
+			request(types.APISet, req, w)
 			return
 		}
 	}
@@ -295,16 +296,16 @@ func get(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		{
 			uids := strings.Split(r.URL.Query().Get("uid"), ",")
-			req := APIRequest{
+			req := types.APIRequest{
 				SessionKey: r.URL.Query().Get("key"),
-				Objects:    make([]APIObject, 0),
+				Objects:    make([]types.APIObject, 0),
 			}
 			for _, uid := range uids {
 				if uid != "" {
-					req.Objects = append(req.Objects, APIObject{"_uid": uid})
+					req.Objects = append(req.Objects, types.APIObject{"_uid": uid})
 				}
 			}
-			request(APIGet, req, w)
+			request(types.APIGet, req, w)
 			return
 		}
 	case http.MethodPost:
@@ -314,7 +315,7 @@ func get(w http.ResponseWriter, r *http.Request) {
 				errorResponse(w, err)
 				return
 			}
-			request(APIGet, req, w)
+			request(types.APIGet, req, w)
 			return
 		}
 	}
@@ -330,7 +331,7 @@ func delete(w http.ResponseWriter, r *http.Request) {
 				errorResponse(w, err)
 				return
 			}
-			request(APIDelete, req, w)
+			request(types.APIDelete, req, w)
 			return
 		}
 	}

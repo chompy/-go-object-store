@@ -8,6 +8,7 @@ import (
 	"github.com/caibirdme/yql"
 	"github.com/philippgille/gokv"
 	"github.com/philippgille/gokv/syncmap"
+	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/pkg/errors"
 )
@@ -23,7 +24,7 @@ const (
 type Store struct {
 	client     gokv.Store
 	sync       sync.Mutex
-	index      []*IndexObject
+	index      []*types.IndexObject
 	indexSync  sync.Mutex
 	userGroups map[string]UserGroup
 }
@@ -44,7 +45,7 @@ func NewStore(c *Config) *Store {
 	return s
 }
 
-func (s *Store) getUserGroups(u *User) []UserGroup {
+func (s *Store) getUserGroups(u *types.User) []UserGroup {
 	out := make([]UserGroup, 0)
 	if u == nil {
 		return out
@@ -69,7 +70,7 @@ func (s *Store) getRaw(k string, o interface{}) error {
 	return nil
 }
 
-func (s *Store) addIndex(o *IndexObject) {
+func (s *Store) addIndex(o *types.IndexObject) {
 	s.indexSync.Lock()
 	defer s.indexSync.Unlock()
 	for i := range s.index {
@@ -81,7 +82,7 @@ func (s *Store) addIndex(o *IndexObject) {
 	s.index = append(s.index, o)
 }
 
-func (s *Store) deleteIndex(o *Object) {
+func (s *Store) deleteIndex(o *types.Object) {
 	s.indexSync.Lock()
 	defer s.indexSync.Unlock()
 	for i := range s.index {
@@ -101,7 +102,7 @@ func (s *Store) commitIndex() error {
 	return nil
 }
 
-func (s *Store) checkPermission(perm string, u *User, o *IndexObject) error {
+func (s *Store) checkPermission(perm string, u *types.User, o *types.IndexObject) error {
 	if o == nil {
 		return errors.WithStack(ErrMissingObject)
 	}
@@ -109,7 +110,7 @@ func (s *Store) checkPermission(perm string, u *User, o *IndexObject) error {
 		return nil
 	}
 	// if user is author then they can 'get' the object
-	if perm == permGet && o.Author == u.UID {
+	if perm == permGet && u.UID != "" && o.Author == u.UID {
 		return nil
 	}
 	// itterate groups and see if any allow permission
@@ -134,7 +135,7 @@ func (s *Store) checkPermission(perm string, u *User, o *IndexObject) error {
 func (s *Store) Sync() error {
 	s.indexSync.Lock()
 	defer s.indexSync.Unlock()
-	remoteIndex := make([]*IndexObject, 0)
+	remoteIndex := make([]*types.IndexObject, 0)
 	if err := s.getRaw(indexName, &remoteIndex); err != nil {
 		if !errors.Is(err, ErrNotFound) {
 			return errors.WithStack(err)
@@ -188,10 +189,10 @@ func (s *Store) Sync() error {
 }
 
 // Index returns index data.
-func (s *Store) Index() ([]IndexObject, error) {
+func (s *Store) Index() ([]types.IndexObject, error) {
 	s.indexSync.Lock()
 	defer s.indexSync.Unlock()
-	out := make([]IndexObject, 0)
+	out := make([]types.IndexObject, 0)
 	for _, o := range s.index {
 		out = append(out, *o)
 	}
@@ -199,8 +200,8 @@ func (s *Store) Index() ([]IndexObject, error) {
 }
 
 // Get retrieves object from store.
-func (s *Store) Get(uid string, u *User) (*Object, error) {
-	o := &Object{}
+func (s *Store) Get(uid string, u *types.User) (*types.Object, error) {
+	o := &types.Object{}
 	if err := s.getRaw(objectPrefix+uid, o); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -211,7 +212,7 @@ func (s *Store) Get(uid string, u *User) (*Object, error) {
 }
 
 // Set stores object.
-func (s *Store) Set(o *Object, u *User) error {
+func (s *Store) Set(o *types.Object, u *types.User) error {
 	if o == nil {
 		return errors.WithStack(ErrMissingObject)
 	}
@@ -230,7 +231,7 @@ func (s *Store) Set(o *Object, u *User) error {
 	s.sync.Lock()
 	// check against previous existing object
 	if u != nil {
-		var existingObj *Object
+		var existingObj *types.Object
 		if !isNew {
 			var err error
 			existingObj, err = s.Get(o.UID, nil)
@@ -269,7 +270,7 @@ func (s *Store) Set(o *Object, u *User) error {
 }
 
 // Delete deletes object from store.
-func (s *Store) Delete(o *Object, u *User) error {
+func (s *Store) Delete(o *types.Object, u *types.User) error {
 	if o.UID == "" {
 		return errors.WithStack(ErrMissingUID)
 	}
@@ -282,16 +283,17 @@ func (s *Store) Delete(o *Object, u *User) error {
 		return errors.WithStack(err)
 	}
 	s.deleteIndex(o)
+	o.UID = ""
 	return nil
 }
 
 // Query returns indexed objects based on provided query match.
-func (s *Store) Query(q string, u *User) ([]IndexObject, error) {
+func (s *Store) Query(q string, u *types.User) ([]types.IndexObject, error) {
 	ruler, err := yql.Rule(q)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	out := make([]IndexObject, 0)
+	out := make([]types.IndexObject, 0)
 	for _, obj := range s.index {
 		match, err := ruler.Match(obj.QueryMap())
 		if err != nil {
@@ -314,8 +316,8 @@ func (s *Store) Query(q string, u *User) ([]IndexObject, error) {
 }
 
 // GetUser retrieves user from store.
-func (s *Store) GetUser(uid string) (*User, error) {
-	u := &User{}
+func (s *Store) GetUser(uid string) (*types.User, error) {
+	u := &types.User{}
 	if err := s.getRaw(userPrefix+uid, u); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -323,9 +325,9 @@ func (s *Store) GetUser(uid string) (*User, error) {
 }
 
 // GetUserByUsername retrieves user from store by their username.
-func (s *Store) GetUserByUsername(username string) (*User, error) {
+func (s *Store) GetUserByUsername(username string) (*types.User, error) {
 	username = sanitizeUsername(username)
-	u := &User{}
+	u := &types.User{}
 	if err := s.getRaw(usernamePrefix+username, u); err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -333,15 +335,17 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 }
 
 // SetUser stores given user.
-func (s *Store) SetUser(u *User) error {
-	if u.UID == "" {
-		return errors.WithStack(ErrMissingUID)
-	}
+func (s *Store) SetUser(u *types.User) error {
+	// require a username
 	if u.Username == "" {
 		return errors.WithStack(ErrMissingUsername)
 	}
-	if u.Password == "" {
-		return errors.WithStack(ErrInvalidPassword)
+	// generate user id if not exists
+	if u.UID == "" {
+		u.UID = generateObjectUID()
+		u.Created = time.Now()
+		u.Modified = time.Now()
+		u.Active = true
 	}
 	defer s.sync.Unlock()
 	s.sync.Lock()
@@ -355,7 +359,7 @@ func (s *Store) SetUser(u *User) error {
 }
 
 // DeleteUser deletes given user from store.
-func (s *Store) DeleteUser(u *User) error {
+func (s *Store) DeleteUser(u *types.User) error {
 	defer s.sync.Unlock()
 	s.sync.Lock()
 	if err := s.client.Delete(userPrefix + u.UID); err != nil {

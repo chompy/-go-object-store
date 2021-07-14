@@ -2,12 +2,13 @@ package main
 
 import (
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func getUserFromCommand(store *Store) (*User, error) {
+func getUserFromCommand(store *Store) (*types.User, error) {
 	// fetch flag values
 	username := userSubCmd.PersistentFlags().Lookup("username").Value.String()
 	uid := userSubCmd.PersistentFlags().Lookup("uid").Value.String()
@@ -21,7 +22,7 @@ func getUserFromCommand(store *Store) (*User, error) {
 	}
 	// load existing user
 	var err error
-	user := &User{}
+	user := &types.User{}
 	if username != "" {
 		user, err = store.GetUserByUsername(username)
 		if err != nil {
@@ -67,14 +68,15 @@ var userSetCmd = &cobra.Command{
 		}
 		// create new if not exist
 		if user == nil {
-			user = NewUser()
+			user = &types.User{}
 			if username == "" || password == "" {
 				cliHandleError(ErrInvalidArg)
 			}
 		}
 		// update user
 		user.Username = username
-		if err := user.SetPassword(password); err != nil {
+		user.PasswordHash, err = generatePasswordHash(password)
+		if err != nil {
 			cliHandleError(err)
 		}
 		user.Groups = groups
@@ -83,8 +85,8 @@ var userSetCmd = &cobra.Command{
 		if err := store.SetUser(user); err != nil {
 			cliHandleError(err)
 		}
-		user.Password = "**redacted**"
-		cliResponse([]APIObject{user.API()})
+		user.PasswordHash = "**redacted**"
+		cliResponse([]types.APIObject{user.API()})
 	},
 }
 
@@ -94,8 +96,8 @@ var userGetCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		user, err := getUserFromCommand(nil)
 		cliHandleError(err)
-		user.Password = "**redacted**"
-		cliResponse([]APIObject{user.API()})
+		user.PasswordHash = "**redacted**"
+		cliResponse([]types.APIObject{user.API()})
 	},
 }
 
@@ -110,7 +112,7 @@ var userDeleteCmd = &cobra.Command{
 		cliHandleError(err)
 		store := NewStore(config)
 		cliHandleError(store.DeleteUser(user))
-		cliResponse([]APIObject{APIObject{"_uid": user.UID}})
+		cliResponse([]types.APIObject{types.APIObject{"_uid": user.UID}})
 	},
 }
 

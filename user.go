@@ -1,11 +1,7 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"fmt"
-	"time"
-
+	"gitlab.com/contextualcode/go-object-store/types"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/pkg/errors"
@@ -17,17 +13,6 @@ const passwordMinLength = 8
 const sessionTimeout = 3600
 const anonymousUser = "anonymous"
 
-// User defines an user accessing the key/value store.
-type User struct {
-	UID      string    `json:"uid"`
-	Username string    `json:"username"`
-	Password string    `json:"password"`
-	Created  time.Time `json:"created"`
-	Modified time.Time `json:"modified"`
-	Active   bool      `json:"active"`
-	Groups   []string  `json:"groups"`
-}
-
 func generateObjectUID() string {
 	uid, err := gonanoid.New()
 	if err != nil {
@@ -36,24 +21,10 @@ func generateObjectUID() string {
 	return uid
 }
 
-// NewUser creates a new user.
-func NewUser() *User {
-	uid, err := gonanoid.New()
-	if err != nil {
-		return nil
+func generatePasswordHash(password string) (string, error) {
+	if len(password) < passwordMinLength {
+		return "", errors.WithStack(ErrInvalidPassword)
 	}
-	return &User{
-		UID:      uid,
-		Username: uid,
-		Password: "",
-		Created:  time.Now(),
-		Modified: time.Now(),
-		Active:   true,
-		Groups:   make([]string, 0),
-	}
-}
-
-func (u *User) generatePasswordHash(password string) (string, error) {
 	hashedPasswordBytes, err := bcrypt.GenerateFromPassword(
 		[]byte(password), bcrypt.DefaultCost,
 	)
@@ -63,43 +34,21 @@ func (u *User) generatePasswordHash(password string) (string, error) {
 	return string(hashedPasswordBytes), nil
 }
 
-// SetPassword sets the user's password.
-func (u *User) SetPassword(password string) error {
-	// validate password
-	// TODO use regexp to check for characters
-	if len(password) < passwordMinLength {
-		return errors.WithStack(ErrInvalidPassword)
+func setPassword(password string, u *types.User) error {
+	hash, err := generatePasswordHash(password)
+	if err != nil {
+		return errors.WithStack(err)
 	}
-	var err error
-	u.Password, err = u.generatePasswordHash(password)
-	return errors.WithStack(err)
+	u.PasswordHash = hash
+	return nil
 }
 
-// CheckPassword returns true if given password matches hash.
-func (u *User) CheckPassword(password string) bool {
-	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)); err != nil {
+func checkPassword(password string, hash string) bool {
+	if hash == "" {
+		return false
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
 		return false
 	}
 	return true
-}
-
-func (u *User) generateSessionKey() string {
-	randBytes := make([]byte, 32)
-	rand.Read(randBytes)
-	key := sha256.Sum256([]byte(
-		fmt.Sprintf("%x%s%s", randBytes, u.UID, u.Username),
-	))
-	return fmt.Sprintf("%x", key)
-}
-
-// API converts user to API object.
-func (u *User) API() APIObject {
-	out := make(APIObject)
-	out["_uid"] = u.UID
-	out["_username"] = u.Username
-	out["_active"] = u.Active
-	out["_groups"] = u.Groups
-	out["_created"] = u.Created.Format(time.RFC3339)
-	out["_modified"] = u.Modified.Format(time.RFC3339)
-	return out
 }

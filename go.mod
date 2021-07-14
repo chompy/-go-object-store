@@ -1,4 +1,4 @@
-module gitlab.com/contextualcode/storage-backend
+module gitlab.com/contextualcode/go-object-store
 
 go 1.16
 

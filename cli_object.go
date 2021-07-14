@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -18,7 +19,7 @@ var objSubCmd = &cobra.Command{
 	Short:   "Object store commands.",
 }
 
-func getUserFromObjectCommand(store *Store) (*User, error) {
+func getUserFromObjectCommand(store *Store) (*types.User, error) {
 	// fetch flag value
 	username := objSubCmd.PersistentFlags().Lookup("user").Value.String()
 	if username == "" {
@@ -82,10 +83,10 @@ var objSetCmd = &cobra.Command{
 			}
 		}
 		// parse object data
-		objs := make([]APIObject, 0)
+		objs := make([]types.APIObject, 0)
 		cliHandleError(json.Unmarshal(data, &objs))
 		// set objects
-		out := make([]APIObject, 0)
+		out := make([]types.APIObject, 0)
 		for _, obj := range objs {
 			storeObj := obj.Object()
 			cliHandleError(store.Set(storeObj, user))
@@ -114,10 +115,10 @@ var objDeleteCmd = &cobra.Command{
 			cliHandleError(ErrMissingUID)
 		}
 		// itterate and delete
-		out := make([]APIObject, 0)
+		out := make([]types.APIObject, 0)
 		for _, uid := range uids {
-			cliHandleError(store.Delete(&Object{UID: uid}, user))
-			out = append(out, APIObject{"_uid": uid})
+			cliHandleError(store.Delete(&types.Object{UID: uid}, user))
+			out = append(out, types.APIObject{"_uid": uid})
 		}
 		cliResponse(out)
 	},
@@ -144,7 +145,7 @@ var objGetCmd = &cobra.Command{
 			uids = []string{args[0]}
 		}
 		// get object
-		out := make([]APIObject, 0)
+		out := make([]types.APIObject, 0)
 		for _, uid := range uids {
 			obj, err := store.Get(uid, user)
 			cliHandleError(err)
@@ -175,7 +176,7 @@ var objQueryCmd = &cobra.Command{
 		res, err := store.Query(query, user)
 		cliHandleError(err)
 		// get object
-		out := make([]APIObject, 0)
+		out := make([]types.APIObject, 0)
 		for _, obj := range res {
 			out = append(out, obj.API())
 		}

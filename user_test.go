@@ -5,24 +5,26 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
 func TestPassword(t *testing.T) {
-	u := NewUser()
-	u.Username = "testuser"
-	if u.SetPassword("test123") == nil {
+	u := &types.User{
+		Username: "testuser",
+	}
+	if setPassword("test123", u) == nil {
 		t.Error("expected password error")
 		return
 	}
-	if err := u.SetPassword("test1234"); err != nil {
+	if err := setPassword("test1234", u); err != nil {
 		t.Error(err)
 		return
 	}
-	if !u.CheckPassword("test1234") {
+	if !checkPassword("test1234", u.PasswordHash) {
 		t.Error("expected password check valid")
 		return
 	}
-	if u.CheckPassword("test5678") {
+	if checkPassword("test5678", u.PasswordHash) {
 		t.Error("expected password check invalid")
 		return
 	}
@@ -33,11 +35,12 @@ func TestUserStore(t *testing.T) {
 	s := NewStore(nil)
 
 	// create user
-	u := NewUser()
-	u.Username = "testuser"
-	u.SetPassword("test1234")
+	u := &types.User{
+		Username: "testuser",
+	}
+	setPassword("test1234", u)
 
-	// stoer user
+	// store user
 	if err := s.SetUser(u); err != nil {
 		t.Error(err)
 		return
@@ -99,11 +102,7 @@ func TestUserPermission(t *testing.T) {
 		},
 	}
 
-	u := NewUser()
-	u.Username = "testuser"
-	u.Groups = []string{"test1", "test2"}
-
-	o1 := &Object{
+	o1 := &types.Object{
 		Data: map[string]interface{}{
 			"type":    "page",
 			"content": "Test page 1",
@@ -177,8 +176,10 @@ func TestStoreWithUser(t *testing.T) {
 	}
 
 	s := NewStore(c)
-	u := NewUser()
-	o := &Object{
+	u := &types.User{
+		UID: "sample_user",
+	}
+	o := &types.Object{
 		Data: map[string]interface{}{
 			"type": "food",
 		},
@@ -241,7 +242,7 @@ func TestStoreWithUser(t *testing.T) {
 
 	// create a new object not owned by user, try to read, expect fail
 	u.Groups = []string{"food_writer"}
-	o2 := &Object{
+	o2 := &types.Object{
 		Data: map[string]interface{}{
 			"type": "food",
 			"name": "Salad",
@@ -279,14 +280,14 @@ func TestStoreWithUser(t *testing.T) {
 func TestUserSession(t *testing.T) {
 
 	// create test user
-	u := NewUser()
-	u.Username = "testuser1"
-	u.SetPassword("test1234")
+	u := &types.User{
+		Username: "testuser1",
+	}
+	setPassword("test1234", u)
 
 	// init session
 	sessions = make([]*UserSession, 0)
-
-	sess, key := u.NewSession("127.0.0.1")
+	sess, key := newSession(u, "127.0.0.1")
 	sessions = append(sessions, sess)
 
 	// ensure session check doesn't remove session prematurely

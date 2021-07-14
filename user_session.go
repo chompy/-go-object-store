@@ -1,8 +1,12 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"fmt"
 	"time"
 
+	"gitlab.com/contextualcode/go-object-store/types"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -16,9 +20,8 @@ type UserSession struct {
 	Created time.Time
 }
 
-// NewSession creates a new session.
-func (u *User) NewSession(ip string) (*UserSession, string) {
-	key := u.generateSessionKey()
+func newSession(u *types.User, ip string) (*UserSession, string) {
+	key := generateSessionKey(u)
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
 	if err != nil {
 		logWarnErr(err, "")
@@ -33,8 +36,7 @@ func (u *User) NewSession(ip string) (*UserSession, string) {
 	return s, key
 }
 
-// CheckKey checks if given key matches session key.
-func (s *UserSession) CheckKey(key string) bool {
+func (s *UserSession) checkKey(key string) bool {
 	if err := bcrypt.CompareHashAndPassword([]byte(s.Key), []byte(key)); err != nil {
 		return false
 	}
@@ -54,9 +56,18 @@ func checkSessions() {
 
 func getSessionFromKey(key string) *UserSession {
 	for _, sess := range sessions {
-		if sess.CheckKey(key) {
+		if sess.checkKey(key) {
 			return sess
 		}
 	}
 	return nil
+}
+
+func generateSessionKey(u *types.User) string {
+	randBytes := make([]byte, 32)
+	rand.Read(randBytes)
+	key := sha256.Sum256([]byte(
+		fmt.Sprintf("%x%s%s", randBytes, u.UID, u.Username),
+	))
+	return fmt.Sprintf("%x", key)
 }

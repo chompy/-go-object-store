@@ -1,10 +1,11 @@
-package main
+package types
 
 import (
 	"time"
 )
 
-const indexValueMaxSize = 128
+// IndexValueMaxSize is the max length a value can be indexed.
+const IndexValueMaxSize = 128
 
 // Object defines a storable object.
 type Object struct {
@@ -20,15 +21,15 @@ type Object struct {
 func (o *Object) Index() *IndexObject {
 	indexData := make(map[string]interface{})
 	for k, v := range o.Data {
-		if len(k) > indexValueMaxSize {
+		if len(k) > IndexValueMaxSize {
 			continue
 		}
 		switch v := v.(type) {
 		case string:
 			{
 				indexData[k] = v
-				if len(v) > indexValueMaxSize {
-					indexData[k] = v[0:indexValueMaxSize]
+				if len(v) > IndexValueMaxSize {
+					indexData[k] = v[0:IndexValueMaxSize]
 				}
 				break
 			}

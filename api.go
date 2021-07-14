@@ -3,112 +3,34 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"gitlab.com/contextualcode/go-object-store/types"
 )
 
-// APIResource defines an action to perform via the API.
-type APIResource int
-
-const (
-	// APILogin defines login action.
-	APILogin APIResource = 1
-	// APILogout defines logout action.
-	APILogout APIResource = 2
-	// APIGet defines get object action.
-	APIGet APIResource = 3
-	// APISet defines set object action.
-	APISet APIResource = 4
-	// APIDelete defines delete object action.
-	APIDelete APIResource = 5
-	// APIQuery defines query object action.
-	APIQuery APIResource = 6
-)
-
-// Name returns string name for API resource.
-func (r APIResource) Name() string {
-	switch r {
-	case APILogin:
-		{
-			return "LOGIN"
-		}
-	case APILogout:
-		{
-			return "LOGOUT"
-		}
-	case APIGet:
-		{
-			return "GET"
-		}
-	case APISet:
-		{
-			return "SET"
-		}
-	case APIDelete:
-		{
-			return "DELETE"
-		}
-	case APIQuery:
-		{
-			return "QUERY"
-		}
-	}
-	return ""
+func sanitizeValues(req *types.APIRequest) {
+	req.Username = strings.ToLower(strings.TrimSpace(req.Username))
+	req.Password = strings.TrimSpace(req.Password)
 }
 
-// APIRequest defines an API request.
-type APIRequest struct {
-	IP         string      `json:"-"`
-	SessionKey string      `json:"key,omitempty"`
-	Username   string      `json:"username,omitempty"`
-	Password   string      `json:"password,omitempty"`
-	Objects    []APIObject `json:"objects,omitempty"`
-	Query      string      `json:"query,omitempty"`
-}
-
-func (a *APIRequest) sanitizeValues() {
-	a.Username = strings.ToLower(strings.TrimSpace(a.Username))
-	a.Password = strings.TrimSpace(a.Password)
-}
-
-// ObjectUIDs return list of object uids in api request.
-func (a APIRequest) ObjectUIDs() []string {
-	out := make([]string, 0)
-	for _, o := range a.Objects {
-		uid := o.Object().UID
-		if uid != "" {
-			out = append(out, uid)
-		}
-	}
-	return out
-}
-
-// Log logs the request.
-func (a APIRequest) Log(res APIResource) {
+func logAPIRequest(req types.APIRequest, res types.APIResource) {
 	userIdentity := anonymousUser
-	if a.Username != "" {
-		userIdentity = a.Username
-	} else if a.SessionKey != "" {
-		userIdentity = a.SessionKey
+	if req.Username != "" {
+		userIdentity = req.Username
+	} else if req.SessionKey != "" {
+		userIdentity = req.SessionKey
 	}
 	objString := ""
-	if len(a.Objects) > 0 {
-		objList := a.ObjectUIDs()
-		newObjCt := len(a.Objects) - len(objList)
+	if len(req.Objects) > 0 {
+		objList := req.ObjectUIDs()
+		newObjCt := len(req.Objects) - len(objList)
 		objString = fmt.Sprintf(" %s", strings.Join(objList, ","))
 		if newObjCt > 0 {
 			objString += fmt.Sprintf(" + %d new", newObjCt)
 		}
-	} else if a.Query != "" {
-		objString += " " + a.Query
+	} else if req.Query != "" {
+		objString += " " + req.Query
 	}
 	logInfo(
 		fmt.Sprintf("@%s - %s%s", userIdentity, res.Name(), objString),
 	)
-}
-
-// APIResponse defines an API response.
-type APIResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message,omitempty"`
-	Key     string      `json:"key,omitempty"`
-	Objects []APIObject `json:"objects,omitempty"`
 }
