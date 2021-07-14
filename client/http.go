@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/pkg/errors"
 	"gitlab.com/contextualcode/go-object-store/types"
 )
 
@@ -60,4 +61,27 @@ func request(res types.APIResource, req types.APIRequest) (types.APIResponse, er
 		return resp, err
 	}
 	return resp, err
+}
+
+func requestObj(res types.APIResource, objs []string, key string) ([]*types.Object, error) {
+	apiObjs := make([]types.APIObject, 0)
+	for _, obj := range objs {
+		apiObjs = append(apiObjs, types.APIObject{"_uid": obj})
+	}
+	req := types.APIRequest{
+		SessionKey: key,
+		Objects:    apiObjs,
+	}
+	resp, err := request(res, req)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	if !resp.Success {
+		return nil, errors.WithStack(errors.WithMessage(ErrResponse, resp.Message))
+	}
+	returnObjs := make([]*types.Object, 0)
+	for _, obj := range resp.Objects {
+		returnObjs = append(returnObjs, obj.Object())
+	}
+	return returnObjs, nil
 }

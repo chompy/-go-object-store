@@ -210,6 +210,7 @@ github.com/philippgille/gokv/syncmap v0.6.0/go.mod h1:ZekkiO1XY9XbjRv9iunxA6+POW
 github.com/philippgille/gokv/test v0.0.0-20191011213304-eb77f15b9c61/go.mod h1:EUc+s9ONc1+VOr9NUEd8S0YbGRrQd/gz/p+2tvwt12s=
 github.com/philippgille/gokv/util v0.0.0-20191011213304-eb77f15b9c61/go.mod h1:2dBhsJgY/yVIkjY5V3AnDUxUbEPzT6uQ3LvoVT8TR20=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/sftp v1.10.1/go.mod h1:lYOWFsE0bwd1+KfKJaKeuokY15vzFx25BLbzYYoAxZI=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

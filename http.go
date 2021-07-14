@@ -136,13 +136,7 @@ func request(res types.APIResource, req types.APIRequest, w http.ResponseWriter)
 			sendResponse(w, http.StatusOK, &types.APIResponse{
 				Success: true,
 				Key:     key,
-			})
-			return
-		}
-	case types.APILogout:
-		{
-			sendResponse(w, http.StatusOK, &types.APIResponse{
-				Success: true,
+				Expires: sess.Expires(),
 			})
 			return
 		}

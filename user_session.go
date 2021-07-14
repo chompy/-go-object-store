@@ -20,6 +20,11 @@ type UserSession struct {
 	Created time.Time
 }
 
+// Expires returns the session expiration time.
+func (u *UserSession) Expires() time.Time {
+	return u.Created.Add(time.Second * sessionTimeout)
+}
+
 func newSession(u *types.User, ip string) (*UserSession, string) {
 	key := generateSessionKey(u)
 	keyHash, err := bcrypt.GenerateFromPassword([]byte(key), bcrypt.DefaultCost)
