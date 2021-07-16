@@ -1,6 +1,8 @@
 package client
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	"gitlab.com/contextualcode/go-object-store/types"
 )
@@ -18,9 +20,13 @@ func Login(username string, password string) (*types.SessionKey, error) {
 	if !resp.Success {
 		return nil, errors.WithStack(errors.WithMessage(ErrResponse, resp.Message))
 	}
+	expireTime, err := time.Parse(time.RFC3339, resp.Expires)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
 	return &types.SessionKey{
 		Key:     resp.Key,
-		Expires: resp.Expires,
+		Expires: expireTime,
 	}, nil
 }
 
@@ -31,7 +37,7 @@ func Get(uids []string, key string) ([]*types.Object, error) {
 }
 
 // Set stores given objects to store API.
-func Set(objs []*types.Object, key string) error {
+func Set(objs []*types.Object, key string) ([]*types.Object, error) {
 	apiObjs := make([]types.APIObject, 0)
 	for _, obj := range objs {
 		apiObjs = append(apiObjs, obj.API())
@@ -42,12 +48,16 @@ func Set(objs []*types.Object, key string) error {
 	}
 	resp, err := request(types.APISet, req)
 	if err != nil {
-		return errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 	if !resp.Success {
-		return errors.WithStack(errors.WithMessage(ErrResponse, resp.Message))
+		return nil, errors.WithStack(errors.WithMessage(ErrResponse, resp.Message))
 	}
-	return nil
+	returnObjs := make([]*types.Object, 0)
+	for _, obj := range resp.Objects {
+		returnObjs = append(returnObjs, obj.Object())
+	}
+	return returnObjs, nil
 }
 
 // Delete deletes object of given UID from store API.

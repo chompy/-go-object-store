@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
+	"gitlab.com/contextualcode/go-object-store/store"
 	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/pkg/errors"
@@ -19,19 +20,19 @@ var objSubCmd = &cobra.Command{
 	Short:   "Object store commands.",
 }
 
-func getUserFromObjectCommand(store *Store) (*types.User, error) {
+func getUserFromObjectCommand(client *store.Client) (*types.User, error) {
 	// fetch flag value
 	username := objSubCmd.PersistentFlags().Lookup("user").Value.String()
 	if username == "" {
 		return nil, nil
 	}
 	// load user
-	user, err := store.GetUserByUsername(username)
-	if err != nil && !errors.Is(err, ErrNotFound) {
+	user, err := client.GetUserByUsername(username)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return nil, errors.WithStack(err)
 	}
 	if user == nil {
-		user, err = store.GetUser(username)
+		user, err = client.GetUser(username)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -65,9 +66,9 @@ var objSetCmd = &cobra.Command{
 		// get config + store
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		store := NewStore(config)
+		client := store.NewClient(config)
 		// get user to set as
-		user, err := getUserFromObjectCommand(store)
+		user, err := getUserFromObjectCommand(client)
 		cliHandleError(err)
 		// get object data
 		data := []byte(cmd.Flags().Lookup("data").Value.String())
@@ -79,7 +80,7 @@ var objSetCmd = &cobra.Command{
 				cliHandleError(err)
 			}
 			if len(data) == 0 {
-				cliHandleError(ErrMissingObject)
+				cliHandleError(store.ErrMissingObject)
 			}
 		}
 		// parse object data
@@ -89,10 +90,10 @@ var objSetCmd = &cobra.Command{
 		out := make([]types.APIObject, 0)
 		for _, obj := range objs {
 			storeObj := obj.Object()
-			cliHandleError(store.Set(storeObj, user))
+			cliHandleError(client.Set(storeObj, user))
 			out = append(out, storeObj.API())
 		}
-		cliHandleError(store.Sync())
+		cliHandleError(client.Sync())
 		cliResponse(out)
 	},
 }
@@ -105,19 +106,19 @@ var objDeleteCmd = &cobra.Command{
 		// get config + store
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		store := NewStore(config)
+		client := store.NewClient(config)
 		// get user to set as
-		user, err := getUserFromObjectCommand(store)
+		user, err := getUserFromObjectCommand(client)
 		cliHandleError(err)
 		// get uids
 		uids := getObjectUidsFromCommand()
 		if len(uids) == 0 {
-			cliHandleError(ErrMissingUID)
+			cliHandleError(store.ErrMissingUID)
 		}
 		// itterate and delete
 		out := make([]types.APIObject, 0)
 		for _, uid := range uids {
-			cliHandleError(store.Delete(&types.Object{UID: uid}, user))
+			cliHandleError(client.Delete(&types.Object{UID: uid}, user))
 			out = append(out, types.APIObject{"_uid": uid})
 		}
 		cliResponse(out)
@@ -131,23 +132,23 @@ var objGetCmd = &cobra.Command{
 		// get config + store
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		store := NewStore(config)
+		client := store.NewClient(config)
 		// get user to set as
-		user, err := getUserFromObjectCommand(store)
+		user, err := getUserFromObjectCommand(client)
 		cliHandleError(err)
 		// get uids
 		uids := getObjectUidsFromCommand()
 		if len(uids) == 0 {
 			// use arg 1 if uid flag not set
 			if len(args) == 0 {
-				cliHandleError(ErrMissingUID)
+				cliHandleError(store.ErrMissingUID)
 			}
 			uids = []string{args[0]}
 		}
 		// get object
 		out := make([]types.APIObject, 0)
 		for _, uid := range uids {
-			obj, err := store.Get(uid, user)
+			obj, err := client.Get(uid, user)
 			cliHandleError(err)
 			out = append(out, obj.API())
 		}
@@ -162,18 +163,18 @@ var objQueryCmd = &cobra.Command{
 		// get config + store
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		store := NewStore(config)
+		client := store.NewClient(config)
 		// get user to set as
-		user, err := getUserFromObjectCommand(store)
+		user, err := getUserFromObjectCommand(client)
 		cliHandleError(err)
 		// get query
 		query := strings.Join(args, " ")
 		if query == "" {
-			cliHandleError(ErrInvalidArg)
+			cliHandleError(store.ErrInvalidArg)
 		}
 		// perform query
-		cliHandleError(store.Sync())
-		res, err := store.Query(query, user)
+		cliHandleError(client.Sync())
+		res, err := client.Query(query, user)
 		cliHandleError(err)
 		// get object
 		out := make([]types.APIObject, 0)

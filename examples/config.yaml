@@ -1,0 +1,12 @@
+http:
+    port: 31580
+
+storage:
+    type: memory
+
+user_groups:
+    anonymous:
+        get: true
+        set: true
+        update: true
+        delete: false

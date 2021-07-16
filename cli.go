@@ -6,17 +6,21 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/http"
+	"gitlab.com/contextualcode/go-object-store/store"
 	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/spf13/cobra"
 )
 
-func loadConfigFromCommand() (*Config, error) {
+const defaultConfigPath = "config.yaml"
+
+func loadConfigFromCommand() (*store.Config, error) {
 	path := rootCmd.PersistentFlags().Lookup("config").Value.String()
 	if path == "" {
-		path = configPath
+		path = defaultConfigPath
 	}
-	config, err := loadConfig(path)
+	config, err := store.LoadConfig(path)
 	return config, errors.WithStack(err)
 }
 
@@ -48,9 +52,6 @@ func cliResponse(objs []types.APIObject) {
 var rootCmd = &cobra.Command{
 	Use:     "cc_store [-c config]",
 	Version: "",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("TEST")
-	},
 }
 
 var serveCmd = &cobra.Command{
@@ -60,13 +61,13 @@ var serveCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		cliHandleError(listen(config))
+		cliHandleError(http.Listen(config))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(objSubCmd)
 	rootCmd.AddCommand(serveCmd)
-	rootCmd.PersistentFlags().StringP("config", "c", configPath, "Set config yaml path.")
+	rootCmd.PersistentFlags().StringP("config", "c", defaultConfigPath, "Set config yaml path.")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Show stack trace on error.")
 }

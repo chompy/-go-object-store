@@ -2,40 +2,41 @@ package main
 
 import (
 	"github.com/pkg/errors"
+	"gitlab.com/contextualcode/go-object-store/store"
 	"gitlab.com/contextualcode/go-object-store/types"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func getUserFromCommand(store *Store) (*types.User, error) {
+func getUserFromCommand(client *store.Client) (*types.User, error) {
 	// fetch flag values
 	username := userSubCmd.PersistentFlags().Lookup("username").Value.String()
 	uid := userSubCmd.PersistentFlags().Lookup("uid").Value.String()
-	if store == nil {
-		// get config + store
+	if client == nil {
+		// get config + client
 		config, err := loadConfigFromCommand()
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
-		store = NewStore(config)
+		client = store.NewClient(config)
 	}
 	// load existing user
 	var err error
 	user := &types.User{}
 	if username != "" {
-		user, err = store.GetUserByUsername(username)
+		user, err = client.GetUserByUsername(username)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 	} else if uid != "" {
-		user, err = store.GetUser(uid)
+		user, err = client.GetUser(uid)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 	}
 	if user == nil || user.UID == "" {
-		return nil, errors.WithStack(ErrMissingUID)
+		return nil, errors.WithStack(store.ErrMissingUID)
 	}
 	return user, nil
 }
@@ -55,34 +56,34 @@ var userSetCmd = &cobra.Command{
 		if err != nil {
 			cliHandleError(err)
 		}
-		store := NewStore(config)
+		client := store.NewClient(config)
 		// flag values
 		username := userSubCmd.PersistentFlags().Lookup("username").Value.String()
 		password := cmd.Flags().Lookup("password").Value.String()
 		groups := cmd.Flags().Lookup("groups").Value.(pflag.SliceValue).GetSlice()
 		disable := cmd.Flags().Lookup("disable").Value.String()
 		// load existing user
-		user, err := getUserFromCommand(store)
-		if err != nil && !errors.Is(err, ErrNotFound) {
+		user, err := getUserFromCommand(client)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			cliHandleError(err)
 		}
 		// create new if not exist
 		if user == nil {
 			user = &types.User{}
 			if username == "" || password == "" {
-				cliHandleError(ErrInvalidArg)
+				cliHandleError(store.ErrInvalidArg)
 			}
 		}
 		// update user
 		user.Username = username
-		user.PasswordHash, err = generatePasswordHash(password)
+		store.SetPassword(password, user)
 		if err != nil {
 			cliHandleError(err)
 		}
 		user.Groups = groups
 		user.Active = disable == "false"
-		// store
-		if err := store.SetUser(user); err != nil {
+		// store user
+		if err := client.SetUser(user); err != nil {
 			cliHandleError(err)
 		}
 		user.PasswordHash = "**redacted**"
@@ -110,8 +111,8 @@ var userDeleteCmd = &cobra.Command{
 		cliHandleError(err)
 		config, err := loadConfigFromCommand()
 		cliHandleError(err)
-		store := NewStore(config)
-		cliHandleError(store.DeleteUser(user))
+		client := store.NewClient(config)
+		cliHandleError(client.DeleteUser(user))
 		cliResponse([]types.APIObject{types.APIObject{"_uid": user.UID}})
 	},
 }

@@ -10,7 +10,7 @@ import (
 	"gitlab.com/contextualcode/go-object-store/types"
 )
 
-var APIURLPrefix = "http://locahost"
+var URL = "http://locahost"
 
 func request(res types.APIResource, req types.APIRequest) (types.APIResponse, error) {
 	// determine endpoint
@@ -19,27 +19,27 @@ func request(res types.APIResource, req types.APIRequest) (types.APIResponse, er
 	switch res {
 	case types.APILogin:
 		{
-			endpoint = APIURLPrefix + "/login"
+			endpoint = URL + "/login"
 			break
 		}
 	case types.APIGet:
 		{
-			endpoint = APIURLPrefix + "/get"
+			endpoint = URL + "/get"
 			break
 		}
 	case types.APISet:
 		{
-			endpoint = APIURLPrefix + "/set"
+			endpoint = URL + "/set"
 			break
 		}
 	case types.APIDelete:
 		{
-			endpoint = APIURLPrefix + "/delete"
+			endpoint = URL + "/delete"
 			break
 		}
 	case types.APIQuery:
 		{
-			endpoint = APIURLPrefix + "/query"
+			endpoint = URL + "/query"
 			break
 		}
 	}
