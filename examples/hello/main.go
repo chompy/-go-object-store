@@ -16,16 +16,27 @@ func main() {
 	p := &PageView{
 		Object: &types.Object{
 			Data: map[string]interface{}{
+				"id":   "name",
 				"name": "",
 			},
 		},
 	}
-	// set object
-	res, err := client.Set([]*types.Object{p.Object}, "")
+
+	// fetch existing, or create new
+	res, err := client.Query("id = 'name'", "")
 	if err != nil {
 		panic(err)
 	}
-	p.Object.UID = res[0].UID
+	if len(res) > 0 {
+		p.Object.UID = res[0].UID
+		p.Object.Data["name"] = res[0].Data["name"]
+	} else {
+		objs, err := client.Set([]*types.Object{p.Object}, "")
+		if err != nil {
+			panic(err)
+		}
+		p.Object.UID = objs[0].UID
+	}
 	log.Println("UID = " + p.Object.UID)
 	// init web
 	vecty.SetTitle("Object Store Get/Set Test")
@@ -45,7 +56,7 @@ func (p *PageView) Render() vecty.ComponentOrHTML {
 		name = p.Object.Data["name"].(string)
 	}
 	return elem.Body(
-		vecty.Text("Hello "),
+		vecty.Text("Hello "+name),
 		elem.Div(
 			elem.Input(
 				vecty.Markup(
@@ -66,6 +77,7 @@ func (p *PageView) Render() vecty.ComponentOrHTML {
 							if err != nil {
 								log.Println("ERROR: " + err.Error())
 							}
+							vecty.Rerender(p)
 						}()
 					}),
 				),

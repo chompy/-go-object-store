@@ -39,6 +39,7 @@ func Listen(config *store.Config) error {
 	http.HandleFunc("/set", set)
 	http.HandleFunc("/get", get)
 	http.HandleFunc("/delete", delete)
+	http.HandleFunc("/query", query)
 	// serve http
 	logInfo(fmt.Sprintf("Start HTTP server on port %d.", config.HTTP.Port))
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", config.HTTP.Port), nil); err != nil {
@@ -330,6 +331,39 @@ func delete(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			request(types.APIDelete, req, w)
+			return
+		}
+	}
+	errorResponse(w, ErrAPIInvalidMethod)
+}
+
+func query(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		{
+			q := r.URL.Query().Get("q")
+			if q == "" {
+				q = r.URL.Query().Get("query")
+			}
+			if q == "" {
+				errorResponse(w, store.ErrInvalidArg)
+				return
+			}
+			req := types.APIRequest{
+				SessionKey: r.URL.Query().Get("key"),
+				Query:      q,
+			}
+			request(types.APIQuery, req, w)
+			return
+		}
+	case http.MethodPost:
+		{
+			req, err := parsePostBody(r)
+			if err != nil {
+				errorResponse(w, err)
+				return
+			}
+			request(types.APIQuery, req, w)
 			return
 		}
 	}
